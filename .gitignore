@@ -3,3 +3,4 @@
 *.sqlite
 cfr_cache/*
 /node_modules
+/clean_parser_env
