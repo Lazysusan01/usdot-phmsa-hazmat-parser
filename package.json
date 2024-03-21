@@ -1,0 +1,17 @@
+{
+  "name": "hazmat-parser",
+  "version": "1.0.0",
+  "description": "This tool parses Title 49 of the CFR for regulations about shipping hazardous materials, namely the Hazardous Materials Regulations (HMR), located in parts 100-185. The specific links that are parsed are:<br>\r https://www.govinfo.gov/content/pkg/CFR-2019-title49-vol2/xml/CFR-2019-title49-vol2.xml<br>\r https://www.govinfo.gov/content/pkg/CFR-2019-title49-vol3/xml/CFR-2019-title49-vol3.xml",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.1"
+  }
+}

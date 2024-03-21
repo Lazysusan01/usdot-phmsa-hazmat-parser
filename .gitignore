@@ -2,3 +2,4 @@
 *.swp
 *.sqlite
 cfr_cache/*
+/node_modules

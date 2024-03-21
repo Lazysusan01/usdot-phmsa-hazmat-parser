@@ -1,7 +1,6 @@
 <!doctype html>
 
 <head>
-
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" crossorigin="anonymous">
     <style>
@@ -42,32 +41,31 @@
     </style>
 </head>
 
-<body>
+<body class="bg-blue-100 h-screen">
     <title>Hazmat Lookup Tool</title>
-    <section class="form">
+    <div class="flex flex-col items-center justify-center h-full">
+    <section class="form w-full max-w-xs">
         <form method="post">
-            <div>
+            <div class='block text-gray-700 text-lg font-bold mb-2 text-center'>
                 <h1>Packaging regulations lookup</h1>
                 <span class="entry">
-                    <label for="un_id">UNNA Number</label>
-                    <input name="un_id" id="un_id" required>
+                    <label for="un_id" class="block text-gray-700 text-sm font-bold mb-2">UN Number or Chemical name</label>
+                    <input name="un_id" id="un_id" class='autocomplete shadow appearance-none border-2 border-blue-500 rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline' required>
                 </span>
                 <span class="entry">
                     <label for="bulk">Bulk Packaging?</label>
                     <span data-toggle="tooltip" data-html="true" title="<p>Bulk packaging means a packaging, other than a vessel or a barge, including a transport vehicle or freight container, in which hazardous materials are loaded with no intermediate form of containment. A Large Packaging in which hazardous materials are loaded with an intermediate form of containment, such as one or more articles or inner packagings, is also a bulk packaging. Additionally, a bulk packaging has:</p><p>(1) A maximum capacity greater than 450 L (119 gallons) as a receptacle for a liquid;</p><p>(2) A maximum net mass greater than 400 kg (882 pounds) and a maximum capacity greater than 450 L (119 gallons) as a receptacle for a solid; or</p><p>(3) A water capacity greater than 454 kg (1000 pounds) as a receptacle for a gas as defined in § 173.115 of this subchapter.</p>">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
-                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                            <path d="M8.93 6.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                        </svg>
+                        <input type="checkbox" name="bulk" id="bulk">
                     </span>
-                <input type="checkbox" name="bulk" id="bulk">
                 </span>
+            </div>
+            <div class= 'flex justify-center mx-auto'>
+            <button type="button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Search</button>
             </div>
             <span class="entry">
                 <div id="packing-group">
                 </div>
             </span>
-            <button type="button" class="btn btn-primary">Search</button>
 
         </form>
         {% for message in get_flashed_messages() %}
@@ -99,46 +97,57 @@
         </div>
     </div>
     {% endif %}
-
+</div>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
     <script>
         window.jQuery || document.write("<script src='{{url_for('static', filename='jquery-3.5.1.js') }}'>\x3C/script>")
     </script>
-    <script type=text/javascript>
+    <script type="text/javascript">
+        var availableTags = [
+        {'label': 'Ethyl butyl ether', 'value': 'UN1179'}, {'label': 'Ethyl butyrate', 'value': 'UN1180'}, {'label': 'Ethyl chloride', 'value': 'UN1037'}, {'label':'Zinc powder', 'value': 'UN1436'}, {'label': 'Zinc resinate', 'value': 'UN2714'}, {'label': '\n                                    Zirconium, dry, \n                                    coiled wire, finished metal sheets, strip (thinner than 254 microns but not thinner than 18 microns)\n', 'value': 'UN2858'}, {'label': '\n                                    Zirconium, dry, \n                                    finished sheets, strip or coiled wire\n', 'value': 'UN2009'}, {'label': 'Zirconium hydride', 'value': 'UN1437'}, {'label': 'Zirconium nitrate', 'value': 'UN2728'}, {'label': '\n                                    Zirconium picramate, \n                                    dry or wetted with less than 20 percent water, by mass\n', 'value': 'UN0236'}, {'label': '\n                                    Zirconium picramate, wetted \n                                    with not less than 20 percent water, by mass\n', 'value': 'UN1517'}, {'label': 'Zirconium powder, dry', 'value': 'UN2008'}, {'label': 'Zirconium powder, dry', 'value': 'UN2008'}, {'label': 'Zirconium powder, dry', 'value': 'UN2008'}, {'label': '\n                                    Zirconium powder, wetted \n                                    with not less than 25 percent water (a visible excess of water must be present) (a) mechanically produced, particle size less than 53 microns; (b) chemically produced, particle size less than 840 microns\n', 'value': 'UN1358'}, {'label': 'Zirconium scrap', 'value': 'UN1932'}, {'label': 'Zirconium suspended in a liquid', 'value': 'UN1308'}, {'label': 'Zirconium suspended in a liquid', 'value': 'UN1308'}, {'label': 'Zirconium suspended in a liquid', 'value': 'UN1308'}, {'label': 'Zirconium tetrachloride', 'value': 'UN2503'}, {'label': '\nBenzol,\n                                     see Benzene\n                                ', 'value': 'UN1114'}]; 
+        console.log(availableTags)
         $(function() {
-            $(document).ready(function() {
-                $('[data-toggle="tooltip"]').tooltip();
+            $(document).ready(function() {     
+            $('input.autocomplete').autocomplete({
+                source: availableTags,
+                select: function(event, ui) {
+                $(this).val(ui.item.value); // Set the UN number as the input value
+                return false;
+                },
+                focus: function(event, ui) {
+                $(this).val(ui.item.label); // Display the chemical name in the input field
+                return false;
+                }
             });
+        
             $('button').click(function() {
                 if ($("input[name='packing-group']:checked").length) {
-                    var url = '/code_lookup?un=' + $("input#un_id").val() + '&bulk=' + $('input#bulk').is(":checked") + '&pg=' + $("input[name='packing-group']:checked")[0].id
-                    window.location.replace(url)
+                var url = '/code_lookup?un=' + $("input#un_id").val() + '&bulk=' + $('input#bulk').is(":checked") + '&pg=' + $("input[name='packing-group']:checked")[0].id;
+                window.location.replace(url);
                 }
+        
                 var json_output = $.getJSON('/pg_lookup', {
-                        un: $("input#un_id").val()
-                    },
-                    function(data) {
-                        if (data.pgs.length > 1) {
-                            var pg_form = document.getElementById("packing-group");
-                            var pg_html = "<h3>Select a packing group <span data-toggle='tooltip' title='Packing group means a grouping according to the degree of danger presented by hazardous materials. Packing Group I indicates great danger; Packing Group II, medium danger; Packing Group III, minor danger.'>" +
-                                "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-info-circle' viewBox='0 0 16 16'>" +
-                                "<path d='M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z'/>" +
-                                "<path d='M8.93 6.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z'/></h3></svg></span>"
-
-                            for (i = 0; i < data.pgs.length; i++) {
-                                var pg = data.pgs[i]
-                                pg_html += `<input type="radio" id="${pg}" name="packing-group" value="{pg}"><label for="${pg}">${pg}</label><br>`
-                            };
-                            pg_form.innerHTML = pg_html;
-                        } else {
-                            var url = '/code_lookup?un=' + $("input#un_id").val() + '&bulk=' + $('input#bulk').is(":checked")
-                            window.location.replace(url)
-                        }
-
+                un: $("input#un_id").val()
+                }, function(data) {
+                if (data.pgs.length > 1) {
+                    var pg_form = document.getElementById("packing-group");
+                    var pg_html = "<h3>Select a packing group <span data-toggle='tooltip' title='Packing group means a grouping according to the degree of danger presented by hazardous materials. Packing Group I indicates great danger; Packing Group II, medium danger; Packing Group III, minor danger.'>" +
+                    "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' class='bi bi-info-circle' viewBox='0 0 16 16'>" +
+                    "<path d='M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z'/>" +
+                    "<path d='M8.93 6.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z'/></h3></svg></span>";
+                    for (i = 0; i < data.pgs.length; i++) {
+                    var pg = data.pgs[i];
+                    pg_html += `<input type="radio" id="${pg}" name="packing-group" value="{pg}"><label for="${pg}">${pg}</label><br>`;
                     }
-                )
-
-            })
+                    pg_form.innerHTML = pg_html;
+                } else {
+                    var url = '/code_lookup?un=' + $("input#un_id").val() + '&bulk=' + $('input#bulk').is(":checked");
+                    window.location.replace(url);
+                }
+                });
+            });    
+        });
 
             // $('mark').bind('click', function(e){
             //     $.getJSON($SCRIPT_ROOT + '/code_lookup', e.target.firstChild.data, function)
