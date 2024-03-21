@@ -48,7 +48,6 @@ def create_app(test_config=None):
 
     return app
 
-
 def debug_harness(db_name = "instance/hazmat-parser.sqlite"):
     from importlib import reload
     reload(soup)

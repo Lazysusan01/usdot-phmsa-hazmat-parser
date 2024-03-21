@@ -123,5 +123,3 @@ def roman_to_int(input):
         return sum
     else:
         raise ValueError('input is not a valid Roman numeral: %s' % input)
-
-        

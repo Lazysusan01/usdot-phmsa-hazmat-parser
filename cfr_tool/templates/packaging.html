@@ -3,6 +3,7 @@
 <head>
 
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" crossorigin="anonymous">
     <style>
         .packaging-container {
             display: flex;
@@ -42,9 +43,7 @@
 </head>
 
 <body>
-
     <title>Hazmat Lookup Tool</title>
-
     <section class="form">
         <form method="post">
             <div>
@@ -71,11 +70,9 @@
             <button type="button" class="btn btn-primary">Search</button>
 
         </form>
-
         {% for message in get_flashed_messages() %}
         <div class="flash">{{ message }}</div>
         {% endfor %}
-
     </section>
 
     {% if results %}
@@ -89,7 +86,6 @@
     </div>
     <div class="packaging-container">
         <div id="packaging-requirements" class="column">
-
             <h2>{{ results['part_num'] }}</h2>
             <h3>Click on highlighted packaging codes to view its packaging standards to the right.</h3>
             {%for i in range(0, len)%}

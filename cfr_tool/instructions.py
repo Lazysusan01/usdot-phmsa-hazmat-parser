@@ -17,7 +17,7 @@ class Instructions(pc.PackagingCodes):
                 #TO DO: Deal with edge cases where the first match is not the proper match.
                 #TO DO: Decide how to display special provisions listed in table format
                 #For now, we try to pick matches which occur at the very beginning of the text
-
+                
                 if len(texts) == 1:
                     text = texts[0]
                     span = code_pattern.search(text).span()

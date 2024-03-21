@@ -20,10 +20,9 @@ class Soup:
         self.parsed_soup = bs4.BeautifulSoup(self.cfr, 'lxml')
         self.volume = volume
 
-
     def get_cfr_xml(self, volume):
         # govinfo xml url from which to parse the hazmat table
-        self.url = 'https://www.govinfo.gov/content/pkg/CFR-2021-title49-vol{}/xml/CFR-2021-title49-vol{}-subtitleB-chapI.xml'.format(
+        self.url = 'https://www.govinfo.gov/content/pkg/CFR-2022-title49-vol{}/xml/CFR-2022-title49-vol{}-subtitleB-chapI.xml'.format(
             str(volume), str(volume)
         )
         self.cache_path = os.path.join(self.CACHE_DIRECTORY, self.url.split("/")[-1] )
@@ -39,7 +38,6 @@ class Soup:
  
         return xml
             
-    
     def find_table(self, table_title):
         tables = self.parsed_soup.find_all('gpotable')
         return [table for table in tables if table.find('ttitle') \

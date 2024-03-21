@@ -1,0 +1,1784 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<codebase>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\codebase2txt.py" name="codebase2txt.py">
+    <content>import os
+
+def escape_xml_chars(text):
+    &quot;&quot;&quot;
+    Escapes special XML characters in text.
+    &quot;&quot;&quot;
+    return (text.replace(&quot;&amp;&quot;, &quot;&amp;amp;&quot;)
+                .replace(&quot;&lt;&quot;, &quot;&amp;lt;&quot;)
+                .replace(&quot;&gt;&quot;, &quot;&amp;gt;&quot;)
+                .replace(&apos;&quot;&apos;, &quot;&amp;quot;&quot;)
+                .replace(&quot;&apos;&quot;, &quot;&amp;apos;&quot;))
+
+def consolidate_code_to_xml(base_path, output_file, file_extensions=None, ignore_dirs=None, ignore_files=None):
+    &quot;&quot;&quot;
+    Consolidates code from a directory into a single XML file, excluding specified directories and files.
+    
+    :param base_path: The base directory to search for files.
+    :param output_file: The output XML file where the consolidated code will be saved.
+    :param file_extensions: A list of file extensions to include (e.g., [&apos;.py&apos;, &apos;.js&apos;]). If None, all files are included.
+    :param ignore_dirs: A list of directory names to ignore (e.g., [&apos;node_modules&apos;, &apos;.git&apos;]).
+    :param ignore_files: A list of file names to ignore (e.g., [&apos;README.md&apos;]).
+    &quot;&quot;&quot;
+    with open(output_file, &apos;w&apos;, encoding=&apos;utf-8&apos;) as outfile:
+        outfile.write(&apos;&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;\n&apos;)
+        outfile.write(&apos;&lt;codebase&gt;\n&apos;)
+        
+        for root, dirs, files in os.walk(base_path):
+            # Skip ignored directories
+            if ignore_dirs:
+                dirs[:] = [d for d in dirs if d not in ignore_dirs]
+                
+            for file in files:
+                # Skip ignored files
+                if ignore_files and file in ignore_files:
+                    continue
+                
+                if file_extensions is None or os.path.splitext(file)[1] in file_extensions:
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, &apos;r&apos;, encoding=&apos;utf-8&apos;) as infile:
+                            file_content = infile.read()
+                            file_content_escaped = escape_xml_chars(file_content)
+                            
+                            outfile.write(f&apos;  &lt;file path=&quot;{escape_xml_chars(file_path)}&quot; name=&quot;{escape_xml_chars(file)}&quot;&gt;\n&apos;)
+                            outfile.write(f&apos;    &lt;content&gt;{file_content_escaped}&lt;/content&gt;\n&apos;)
+                            outfile.write(&apos;  &lt;/file&gt;\n&apos;)
+                    except UnicodeDecodeError:
+                        print(f&quot;Skipping file due to encoding issue: {file_path}&quot;)
+        
+        outfile.write(&apos;&lt;/codebase&gt;\n&apos;)
+    print(f&quot;Consolidated code written to {output_file}&quot;)
+
+# Example usage
+# C:\Users\nico_chemwatch\OneDrive - Ucorp Pty Ltd T A Chemwatch\Documents\Python\Transport of dangerous goods  - Cleanup\hazmat-parser\images
+base_directory = &quot;/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser&quot;  # Change this to the path of your codebase
+output_file_name = &quot;consolidated_code.xml&quot;  # The name of the output file
+file_types_to_include = [&apos;.py&apos;, &apos;.html&apos;,]  # Change this list based on the types of files you want to include
+directories_to_ignore = []  # Directories to ignore
+files_to_ignore = [&apos;README.md&apos;]  # Files to ignore
+
+consolidate_code_to_xml(base_directory, output_file_name, file_types_to_include, directories_to_ignore, files_to_ignore)
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\grab_csvs.py" name="grab_csvs.py">
+    <content>import sqlite3
+import pandas as pd
+
+db = sqlite3.connect(&apos;instance/hazmat-parser.sqlite&apos;)
+cur = db.cursor()
+cur.execute(
+    &quot;select name from sqlite_master where type=&apos;table&apos;; &quot;)
+tables = cur.fetchall()
+
+for table in tables:
+    table_df = pd.read_sql_query(&quot;SELECT * FROM {};&quot;.format(table[0]), db)
+    table_df.to_csv(&apos;csvs/{}.csv&apos;.format(table[0]))</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\test_cfr_tool.py" name="test_cfr_tool.py">
+    <content>import os
+import tempfile
+
+import pytest
+
+from cfr_tool import create_app, db
+
+
+@pytest.fixture
+def client():
+    cfr_tool = create_app()
+    db_fd, cfr_tool.config[&apos;DATABASE&apos;] = tempfile.mkstemp()
+    cfr_tool.config[&apos;TESTING&apos;] = True
+
+    with cfr_tool.test_client() as client:
+        with cfr_tool.app_context():
+            db.init_db()
+        yield client
+
+    os.close(db_fd)
+    os.unlink(cfr_tool.config[&apos;DATABASE&apos;])
+
+def test_empty_db(client):
+
+    rv = client.post(&apos;/packaging&apos;)
+    assert rv.data</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\clean_text.py" name="clean_text.py">
+    <content>import regex as re
+
+&apos;&apos;&apos;
+Some utility functions for parsing and cleaning text.
+&apos;&apos;&apos;
+def find_unnas(text):
+    &apos;&apos;&apos;
+    Returns a list of all UNNA numbers found in a piece of text
+    &apos;&apos;&apos;
+    digit_pattern = re.compile(&apos;(\d{4})&apos;)
+    unna_pattern = re.compile(&apos;UN|NA&apos;)
+    unna_spans = [(m.span(), m.group()) for m in unna_pattern.finditer(text)]
+    unnas = []
+    for match in digit_pattern.finditer(text):
+        span = match.span()
+        code = match.group()
+        diffs = [span[0] - unna_span[0][0] for unna_span in unna_spans]
+        if diffs:
+            min_diff_idx = diffs.index(min(diffs))
+            if min_diff_idx &lt; 0:
+                continue
+            prefix = unna_spans[min_diff_idx][1]
+            unnas.append(prefix + code)
+    return unnas
+
+def build_packaging_text(spans_paragraphs):
+    &apos;&apos;&apos;
+    Take a list with spans in index 0 and paragraphs in index 1 and apply a &lt;mark&gt; tag
+    around the specified spans.
+    &apos;&apos;&apos;
+
+    output_html = []
+    for i, paragraph in enumerate(spans_paragraphs[1]):
+        spans = spans_paragraphs[0][i]
+        marked_par = paragraph[1]
+        if spans:
+            increment = 0
+            for span in spans:
+                beginning = marked_par[:span[0] + increment]
+                mark = marked_par[span[0] + increment:span[1] + increment]
+                end = marked_par[span[1] + increment:]
+                marked_par = beginning + &quot;&lt;mark&gt;&quot; + mark + &quot;&lt;/mark&gt;&quot; + end
+                increment += 13
+        output_html.append(marked_par)
+    return output_html 
+
+def clean_new_lines(ent):
+    return ent.text.strip(&apos;\n&apos;).replace(&apos;\n&apos;, &apos; &apos;)
+
+
+def parse_names_codes(text):
+    #This regex finds 3 groups: the description/name of the packaging, the code, and any slashes after the code (i.e. 5H1/2/3)
+    pattern = re.compile(
+        &apos;((?&lt;!\d)(?&lt;=\s|^|.\s|.)[^\d\(\).]+\w+(?=[\s|-]\(\d+[A-Z]))|(?&lt;=\(|\sor\s)(\d+[A-Z]+\d?(/\d)*)(?=\)|\sor\s)&apos;)
+    results = pattern.findall(text)
+    last_name = None
+    output = []
+    for name, code, slashes in results:
+        if name:
+            last_name = name.strip()
+        if slashes:
+            base = code[0:code.find(&quot;/&quot;)]
+            output.append((base, last_name))
+            for trailing_number in code[code.find(&quot;/&quot;):].split(&quot;/&quot;):
+                if trailing_number:
+                    output.append((base[:-1] + trailing_number, last_name))
+        if code and slashes == &apos;&apos;:
+            output.append((code, last_name))
+    return output
+
+def parse_packaging_kind_material(texts):
+    output = {&quot;packaging_kinds&quot;: [], &quot;packaging_materials&quot;: []}
+    pattern_material = re.compile(
+        &apos;((?&lt;=\\“)[A-Z](?=\\”\\smeans\\s))|((?&lt;=means\s).*(?=\.))&apos;)
+    pattern_kind = re.compile(
+        &apos;((?&lt;=\\“)\d(?=\\”\\smeans\\s))|((?&lt;=means\s).*(?=\.))&apos;)
+    for text in texts:
+        matches = pattern_kind.findall(text)
+        if matches:
+            if matches[0][0]:
+                output[&quot;packaging_kinds&quot;].append((matches[0][0], matches[1][1]))
+            else:
+                matches = pattern_material.findall(text)
+                output[&quot;packaging_materials&quot;].append((matches[0][0], matches[1][1]))
+    return output
+
+def int_to_roman(input):
+    &quot;&quot;&quot; Convert an integer to a Roman numeral. &quot;&quot;&quot;
+    # Taken from https://www.oreilly.com/library/view/python-cookbook/0596001673/ch03s24.html
+
+    if not isinstance(input, type(1)):
+        raise TypeError(&quot;expected integer, got %s&quot; % type(input))
+    if not 0 &lt; input &lt; 4000:
+        raise ValueError(&quot;Argument must be between 1 and 3999&quot;)
+    ints = (1000, 900,  500, 400, 100,  90, 50,  40, 10,  9,   5,  4,   1)
+    nums = (&apos;M&apos;,  &apos;CM&apos;, &apos;D&apos;, &apos;CD&apos;,&apos;C&apos;, &apos;XC&apos;,&apos;L&apos;,&apos;XL&apos;,&apos;X&apos;,&apos;IX&apos;,&apos;V&apos;,&apos;IV&apos;,&apos;I&apos;)
+    result = []
+    for i in range(len(ints)):
+        count = int(input / ints[i])
+        result.append(nums[i] * count)
+        input -= ints[i] * count
+    return &apos;&apos;.join(result)
+
+def roman_to_int(input):
+    &quot;&quot;&quot; Convert a Roman numeral to an integer. &quot;&quot;&quot;
+    # Taken from https://www.oreilly.com/library/view/python-cookbook/0596001673/ch03s24.html
+    if not isinstance(input, type(&quot;&quot;)):
+        raise TypeError(&quot;expected string, got %s&quot; % type(input))
+    input = input.upper(  )
+    nums = {&apos;M&apos;:1000, &apos;D&apos;:500, &apos;C&apos;:100, &apos;L&apos;:50, &apos;X&apos;:10, &apos;V&apos;:5, &apos;I&apos;:1}
+    sum = 0
+    for i in range(len(input)):
+        try:
+            value = nums[input[i]]
+            # If the next place holds a larger number, this value is negative
+            if i+1 &lt; len(input) and nums[input[i+1]] &gt; value:
+                sum -= value
+            else: sum += value
+        except KeyError:
+            raise ValueError(&apos;input is not a valid Roman numeral: %s&apos; % input)
+    # easiest test for validity...
+    if int_to_roman(sum) == input:
+        return sum
+    else:
+        raise ValueError(&apos;input is not a valid Roman numeral: %s&apos; % input)
+
+        </content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\code_lookup.py" name="code_lookup.py">
+    <content>import json
+import flask
+
+from . import db
+from . import packaging_codes as pc
+from . import soup
+from . import clean_text as ct
+from . import instructions
+
+import re
+
+bp = flask.Blueprint(&apos;packaging&apos;, __name__)
+
+def build_results(un_id, bulk, pg, db):
+    un_na_pattern = re.compile(&apos;([uU][nN]|[nN][aA])&apos;)
+    any_digits = re.compile(&apos;\d+&apos;)
+    unna_match = un_na_pattern.search(un_id)
+    digits_match = any_digits.search(un_id)
+    if digits_match:
+        digits = digits_match.group(0)
+        if len(digits) &lt;= 4:
+            if unna_match:
+                unna = unna_match.group(0)
+                clean_unna = unna.upper() + (&quot;0000&quot; + digits)[-4:]
+            else:
+                #If &apos;UN/NA&apos; prefix isn&apos;t specified, we assume &quot;UN&quot;
+                clean_unna = &quot;UN&quot; + (&quot;0000&quot; + digits)[:4]
+    print(&quot;clean unna&quot;)
+    print(clean_unna)
+    if pg:
+        query_text = &apos;&apos;&apos;
+        SELECT hazmat_table.row_id, proper_shipping_name, class_division
+        FROM hazmat_table
+        JOIN proper_shipping_names
+        ON hazmat_table.row_id = proper_shipping_names.row_id
+        WHERE unna_code = &apos;{}&apos; and pg = &apos;{}&apos;;
+        &apos;&apos;&apos;.format(clean_unna, pg)
+    else:
+        query_text = &apos;&apos;&apos;
+        SELECT hazmat_table.row_id, proper_shipping_name, class_division
+        FROM hazmat_table
+        JOIN proper_shipping_names
+        ON hazmat_table.row_id = proper_shipping_names.row_id
+        WHERE unna_code = &apos;{}&apos;
+        &apos;&apos;&apos;.format(clean_unna)
+    print(query_text)
+    row_id_query = db.execute(query_text)
+    #TO DO : make sure that UNNA code and pg uniquely identify each row.
+    row_id, hazmat_name, class_division = row_id_query.fetchone()
+    ins = instructions.Instructions(db, soup.Soup(2))
+    requirement_query = ins.db.execute(&apos;&apos;&apos;
+            SELECT section FROM packaging_instructions
+            WHERE row_id = {} AND bulk = {}
+        &apos;&apos;&apos;.format(row_id, 1 if bulk == &apos;true&apos; else 0))
+
+    try:
+        requirement = requirement_query.fetchone()
+        requirement = requirement[0]
+        spans_paragraphs = ins.get_spans_paragraphs(requirement)
+    except:
+        spans_paragraphs = None
+    bulk_text = &apos;Bulk&apos; if bulk == &quot;true&quot; else &apos;Non-Bulk&apos;
+    if spans_paragraphs:
+        packaging_text = ct.build_packaging_text(spans_paragraphs)
+    else:
+        packaging_text = [&quot;No {} packaging instructions of {} available.&quot;.format(
+            bulk_text.lower(), hazmat_name)]
+
+    return {&apos;UNID&apos;: un_id,
+            &apos;hazmat_name&apos;: hazmat_name,
+            &apos;bulk&apos;: bulk_text,
+            &apos;pg&apos;: pg,
+            &apos;part_num&apos;: requirement,
+            &apos;forbidden&apos;: True if class_division == &apos;Forbidden&apos; else False,
+            &apos;text&apos;: packaging_text,
+            &apos;special_provisions&apos;: ins.get_special_provisions(row_id)}
+
+
+@bp.route(&apos;/&apos;,  methods=(&apos;GET&apos;, &apos;POST&apos;))
+def code_lookup():
+    print(flask.request.args)
+    un = flask.request.args.get(&quot;un&quot;, None)
+    bulk = flask.request.args.get(&quot;bulk&quot;, None)
+    pg = flask.request.args.get(&quot;pg&quot;, None)
+    code = flask.request.args.get(&quot;code&quot;, None)
+    if un:
+        hazmat_db = db.get_db()
+        render_results = build_results(un, bulk, pg, hazmat_db)
+        return flask.render_template(
+            &apos;packaging.html&apos;, len=len(render_results[&apos;text&apos;]), results=render_results)
+    if code:
+        cur = db.get_db().cursor()
+        cur.execute(&apos;&apos;&apos;
+            SELECT * FROM packaging_standards WHERE packaging_code=&apos;{}&apos;
+        &apos;&apos;&apos;.format(code))
+        rows = cur.fetchall()
+        #For now, grabs the first result
+        section = rows[0][&apos;section&apos;]
+        p = pc.PackagingCodes(cur, soup.Soup(3))
+        p.part = 178
+        spans_paragraphs = p.get_spans_paragraphs(section)
+        html_list = ct.build_packaging_text(spans_paragraphs)
+        html_text = &apos;&apos;
+        for p in html_list:
+            html_text += &apos;&lt;p&gt;&apos;
+            html_text += p
+            html_text += &apos;&lt;/p&gt;&apos;
+        return json.dumps({&quot;status&quot;: &quot;success&quot;,
+                           &quot;section&quot;: section,
+                           &quot;html&quot;: html_text})
+    else:
+        return flask.render_template(&quot;packaging.html&quot;, results=False)
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\db.py" name="db.py">
+    <content>import sqlite3
+import click
+from flask import Flask, current_app, g, has_app_context
+from flask.cli import with_appcontext
+import os
+from . import __init__
+
+from . import table, explosives, nonbulk
+from . import soup
+from . import instructions
+from . import performance_packaging
+from . import spec_packaging
+from . import explosives
+&apos;&apos;&apos;
+import table, explosives, nonbulk, soup
+&apos;&apos;&apos;
+DATABASE_PATH = &apos;../hazmat-parser/instance&apos;
+
+def get_db():
+    if has_app_context():
+        if &apos;db&apos; not in g:
+            g.db = sqlite3.connect(
+                current_app.config[&apos;DATABASE&apos;],
+                detect_types=sqlite3.PARSE_DECLTYPES
+            )
+            g.db.row_factory = sqlite3.Row
+
+        return g.db
+    else:
+        db = sqlite3.connect(DATABASE_PATH + &apos;/hazmat-parser.sqlite&apos;)
+        return db
+
+
+def close_db(e=None):
+    db = g.pop(&apos;db&apos;, None)
+
+    if db is not None:
+        db.close()
+
+def init_db():
+    print(&quot;initializing db&quot;)
+    db = get_db()
+    
+    soup_2 = soup.Soup(2)
+    print(&apos;made soup&apos;)
+    hazmat_table = table.HazmatTable(db, soup_2)
+    hazmat_table.create_load_hazmat_data()
+    print(&quot;loaded hazmat&quot;)
+
+    instructions_parser = instructions.Instructions(db, soup_2)
+    instructions_parser.load_all_packaging_reqs()
+    print(&quot;loaded instructions&quot;)
+
+    soup_3 = soup.Soup(3)
+    perf_packaging_parser = performance_packaging.PerformancePackaging(db, soup_3)
+    perf_packaging_parser.load_packaging_standards()
+    print(&quot;loaded performance packaging&quot;)
+
+    spec_parser = spec_packaging.SpecPackaging(db)
+    spec_parser.get_load_sects_subjects()
+    print(&quot;loaded spec packaging&quot;)
+    spec_parser.get_load_tank_cars()
+    print(&apos;loaded tank cars&apos;)
+
+    # explosives_parser = explosives.Explosives(db, soup_2)
+    # explosives_parser.parse_load_all_explosives()
+    # print(&apos;loaded explosives&apos;)
+    &apos;&apos;&apos;
+    nb = nonbulk.NonBulk(db, soup.Soup(3))
+    nb.parse_kind_material()
+    print(&apos;parsed kind material&apos;)
+    nb.load_packaging_categories()
+    print(&apos;loaded categories&apos;)
+    &apos;&apos;&apos;
+    db.commit()
+
+
+
+
+@click.command(&apos;init-db&apos;)
+@with_appcontext
+def init_db_command():
+    &quot;&quot;&quot;Clear the existing data and create new tables.&quot;&quot;&quot;
+    init_db()
+    click.echo(&apos;Initialized the database.&apos;)
+
+def init_app(app):
+    app.teardown_appcontext(close_db)
+    app.cli.add_command(init_db_command)</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\ecfr.py" name="ecfr.py">
+    <content>from collections import defaultdict
+import logging
+import os
+
+import regex as re
+import requests
+import bs4
+from datetime import date as dt
+
+class Ecfr:
+    CACHE_DIRECTORY = &quot;cfr_cache&quot;
+
+    def __init__(self):
+        if not os.path.exists(self.CACHE_DIRECTORY):
+            os.mkdir(self.CACHE_DIRECTORY)
+
+    def get_section_content(self, part, section, date=None):
+        if not date:
+            date = dt.today()
+        self.url = &quot;https://ecfr.federalregister.gov/api/renderer/v1/content/enhanced/{}-{}-{}/title-49?chapter=I&amp;part={}&amp;section={}&quot;.format(
+            date.year, date.month, date.day, part, str(part) + &quot;.&quot; + str(section)
+        )
+        self.cache_path = os.path.join(self.CACHE_DIRECTORY, str(part) + &quot;.&quot; + str(section))
+        if os.path.exists(self.cache_path):
+            logging.info(&quot;using cached CFR section {}&quot;.format(section))
+            with open(self.cache_path, encoding=&quot;utf-8&quot;) as cache_html:
+                html = cache_html.read()
+        else:
+            logging.info(&quot;downloading fresh CFR section {}&quot;.format(section))
+            html = requests.get(self.url).text
+            with open(self.cache_path, &quot;w+&quot;, encoding=&quot;utf-8&quot;) as cache_html:
+                cache_html.write(html)
+ 
+        return html
+
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\explosives.py" name="explosives.py">
+    <content>import re
+from . import clean_text as ct
+from . import patterns
+
+class Explosives:
+    def __init__(self, db, soup):
+        self.db = db
+        self.soup = soup
+        self.section = &quot;173.62&quot;
+
+    def create_explosives_table(self):
+        self.db.execute(
+            &apos;&apos;&apos;
+            DROP TABLE IF EXISTS explosives;
+            &apos;&apos;&apos;
+        )
+        self.db.execute(
+            &apos;&apos;&apos;
+            CREATE TABLE explosives (
+                unna_code text,
+                pi text not null,
+                FOREIGN KEY (unna_code) REFERENCES hazmat_table (unna_code),
+                FOREIGN KEY (pi) REFERENCES pis
+            );
+            &apos;&apos;&apos;
+        )
+        return
+    
+    def create_pis_table(self):
+        self.db.execute(
+            &apos;&apos;&apos;
+            DROP TABLE IF EXISTS pis;
+            &apos;&apos;&apos;
+        )
+        self.db.execute(
+            &apos;&apos;&apos;
+            CREATE TABLE pis (
+                pi text primary key,
+                inner text,
+                intermediate text,
+                outer text
+            )
+            &apos;&apos;&apos;
+        )
+
+    def create_explosive_pis_tables(self):
+        self.db.execute(
+            &apos;&apos;&apos;
+            DROP TABLE IF EXISTS explosive_pi_unnas;
+            &apos;&apos;&apos;
+        )
+        self.db.execute(
+            &apos;&apos;&apos;
+            CREATE TABLE explosive_pi_unnas (
+                pi text,
+                column text,
+                unna_code text,
+                FOREIGN KEY (unna_code) REFERENCES hazmat_table (unna_code),
+                FOREIGN KEY (pi) REFERENCES pis (pi)
+            );
+            &apos;&apos;&apos;
+        )
+        self.db.execute(
+            &apos;&apos;&apos;
+            DROP TABLE IF EXISTS explosive_pi_packaging_codes;
+            &apos;&apos;&apos;
+        )
+        self.db.execute(
+            &apos;&apos;&apos;
+            CREATE TABLE explosive_pi_packaging_codes (
+                pi text,
+                column text,
+                packaging_code text,
+                FOREIGN KEY (pi) REFERENCES pis (pi),
+                FOREIGN KEY (column) REFERENCES explosives_pis_unnas (column)
+            );
+            &apos;&apos;&apos;
+        )
+        return
+    
+    def parse_explosives_table(self):
+        &apos;&apos;&apos;
+        Returns items to be inserted into explosives table
+        &apos;&apos;&apos;
+        explosives_table = self.soup.find_table(&apos;Explosives Table&apos;)
+        rows = explosives_table.find_all(&apos;row&apos;)
+        ents = [row.find_all(&apos;ent&apos;) for row in rows]
+        insert = []
+        for ent in ents:
+            unna_code = ent[0].text
+            pi = ent[1].text
+            if &quot; or &quot; in pi:
+                pis = pi.split(&apos; or &apos;)
+                for p in pis:
+                    insert.append((p, unna_code))
+            else:
+                insert.append((pi, unna_code))
+        return insert
+    
+    def parse_packing_methods(self):
+        &apos;&apos;&apos;
+        Returns 3 lists of tuples to be inserted into pis, explosive_pi_unnas, and
+        explosive_pi_packaging_codes
+        &apos;&apos;&apos;
+        column_map = {
+            0: &apos;requirements_exceptions&apos;,
+            1: &apos;inner_packagings&apos;,
+            2: &apos;intermediate_packagings&apos;,
+            3: &apos;outer_packagings&apos;
+        }
+        packing_methods_table = self.soup.find_table(&apos;Table of Packing Methods&apos;)
+        rows = packing_methods_table.find_all(&apos;row&apos;)
+        pi = None
+        pis_insert = []
+        explosive_pi_unnas_insert = []
+        explosive_pi_packaging_codes_insert = []
+        for row in rows:
+            ents = row.find_all(&apos;ent&apos;)
+            first_cell = ents[0].text
+            pi_pattern = re.compile(patterns.PI_PATTERN)
+            pi_match = pi_pattern.match(first_cell)
+            if pi_match:
+                pi = pi_match.group()
+                if len(ents) &lt; 4:
+                    pis_insert.append((pi, None, None, None))
+                    continue
+                else:
+                    pis_insert.append((pi, ents[1].text, ents[2].text, ents[3].text))
+            else:
+                for i, ent in enumerate(ents):
+                    unna_codes = ct.find_unnas(ent.text)
+                    perf_pattern = re.compile(patterns.PERF_PACKAGING)
+                    packaging_codes = perf_pattern.findall(ent.text)
+                    for unna_code in unna_codes:
+                        explosive_pi_unnas_insert.append((pi, column_map[i], unna_code))
+                    for packaging_code in packaging_codes:
+                        explosive_pi_packaging_codes_insert.append(
+                            (pi, column_map[i], packaging_code))
+
+        return pis_insert, explosive_pi_unnas_insert, explosive_pi_packaging_codes_insert
+
+    def parse_load_all_explosives(self):
+        self.create_explosives_table()
+        self.create_pis_table()
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO explosives (unna_code, pi) VALUES (?, ?)
+            &apos;&apos;&apos;, self.parse_explosives_table()
+        )
+        self.db.commit()
+        self.create_explosive_pis_tables()
+        pis_insert, explosive_unnas, explosive_packaging_codes = \
+            self.parse_packing_methods()
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO pis (pi, inner, intermediate, outer) VALUES (?, ?, ?, ?)
+            &apos;&apos;&apos;, pis_insert
+        )
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO explosive_pi_unnas (pi, column, unna_code) VALUES (?, ?, ?)
+            &apos;&apos;&apos;, explosive_unnas
+        )
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO explosive_pi_packaging_codes (pi, column, packaging_code)
+            VALUES (?, ?, ?)
+            &apos;&apos;&apos;, explosive_packaging_codes
+        )
+        return
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\instructions.py" name="instructions.py">
+    <content>import regex as re
+from . import packaging_codes as pc
+
+class Instructions(pc.PackagingCodes):
+
+    def __init__(self, db, soup):
+        pc.PackagingCodes.__init__(self, db, soup)
+        self.part = 173
+        self.db = db
+        self.soup = soup
+        
+    def get_special_provisions(self, row_id):
+        def _match_code(code):
+            code_pattern = re.compile(code + &quot;(?![A-Za-z0-9])&quot;)
+            texts = spec_prov_tag.find_all(text=code_pattern)
+            if texts:
+                #TO DO: Deal with edge cases where the first match is not the proper match.
+                #TO DO: Decide how to display special provisions listed in table format
+                #For now, we try to pick matches which occur at the very beginning of the text
+
+                if len(texts) == 1:
+                    text = texts[0]
+                    span = code_pattern.search(text).span()
+                else:
+                    spans = [code_pattern.search(text).span() for text in texts]
+                    span_starts = [span[0] for span in spans]
+                    _, idx = min((val, idx) for (idx, val) in enumerate(span_starts))
+                    text = texts[idx]
+                    span = spans[idx]
+                return text[0:span[0]] + &quot;&lt;b&gt;&quot; + text[span[0]:span[1]] + &quot;&lt;/b&gt;&quot; +\
+                    text[span[1]:len(text) + 1]
+            else:
+                return &quot;&lt;b&gt;&quot; + code + &quot;&lt;/b&gt;&quot;
+        special_prov_query = self.db.execute(&apos;&apos;&apos;
+            SELECT * FROM special_provisions WHERE row_id = {}
+        &apos;&apos;&apos;.format(row_id))
+        special_provisions = special_prov_query.fetchall()
+        special_provisions_codes = [x[&apos;special_provision&apos;] for x in special_provisions]
+        spec_prov_tag = self.soup.get_section_text(&apos;172.102&apos;)
+        return [_match_code(code) for code in special_provisions_codes]
+
+    def load_all_packaging_reqs(self):
+
+        nb_reqs_query = self.db.execute(
+            &apos;&apos;&apos;
+            SELECT DISTINCT section FROM packaging_instructions;
+            &apos;&apos;&apos;
+        )
+        nb_reqs = nb_reqs_query.fetchall()
+        packaging_reqs = [req[0] for req in nb_reqs]
+        insert_list = []
+        for req in packaging_reqs:
+            try:
+                insert_list += self.grab_agency_code_pattern(req)
+            except:
+                continue
+
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO packaging_requirements VALUES (
+                ?, ?, ?, ?, ?, ?, ?
+            )
+            &apos;&apos;&apos;, insert_list
+        )       </content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\nonbulk.py" name="nonbulk.py">
+    <content>import regex as re
+from . import packaging_codes as pc
+
+class NonBulk(pc.PackagingCodes):
+    START = 504
+    END = 523
+    def __init__(self, db, soup):
+        pc.PackagingCodes.__init__(self, db, soup)
+
+    def parse_kind_material(self):
+        self.create_kinds_table()
+        self.create_materials_table()
+        id_codes = self.soup.get_section_text(178, 502)
+        texts = [p.text for p in id_codes.find_all(&apos;p&apos;)]
+        parsed_codes = {&quot;packaging_kinds&quot;: [], &quot;packaging_materials&quot;: []}
+        # Looks for the &apos;B&apos; and &apos;aluminum within &apos;(ii) “B” means aluminum.&apos;
+        pattern_material = re.compile(
+            &apos;((?&lt;=\\“)[A-Z](?=\\”\\smeans\\s))|((?&lt;=means\s).*(?=\.))&apos;)
+        # Looks for the &apos;1&apos; and &apos;drum&apos; within &apos;(i) “1                                                                                                                                                                                                               means a drum.&apos;
+        pattern_kind = re.compile(
+            &apos;((?&lt;=\\“)\d(?=\\”\\smeans\\s))|((?&lt;=means\s).*(?=\.))&apos;)
+        for text in texts:
+            matches = pattern_kind.findall(text)
+            if matches:
+                if matches[0][0]:
+                    parsed_codes[&quot;packaging_kinds&quot;].append((matches[0][0], matches[1][1]))
+                else:
+                    matches = pattern_material.findall(text)
+                    parsed_codes[&quot;packaging_materials&quot;].append(
+                        (matches[0][0], matches[1][1]))
+        for table, values in parsed_codes.items():
+            self.db.executemany(&apos;&apos;&apos;
+                INSERT INTO {} (
+                    id_code,
+                    meaning
+                ) VALUES (
+                    ?, ?
+                )
+            &apos;&apos;&apos;.format(table), values)
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\nonbulk_requirements.py" name="nonbulk_requirements.py">
+    <content>import soup
+import packaging_codes as pc
+
+class NonBulkRequirements(pc.PackagingCodes):
+    def __init__(self, db, soup):
+        pc.PackagingCodes.__init__(self, db, soup)
+        self.db = db
+        self.soup = self.volume_check(soup)
+
+    def volume_check(self, soup):
+        assert soup.volume == 2
+        return soup
+
+    def get_packaging_codes(self, requirement):
+        text_tags = self.soup.get_section_text(173, requirement).find_all()
+        return text_tags
+        
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\packaging.py" name="packaging.py">
+    <content>from flask import (
+    Blueprint, flash, g, make_response, redirect, render_template, request, session, url_for
+)
+
+from . import db
+from . import clean_text as ct
+from . import code_lookup
+
+bp = Blueprint(&apos;packaging&apos;, __name__)
+        
+
+def check_packaging(unna, db):
+    db.execute(&quot;SELECT pg FROM hazmat_table WHERE unna_code = &apos;{}&apos;&quot;.format(unna))
+    pgs = db.fetchall()
+    if len(pgs) &gt; 1:
+        #TO DO: render packaging.html so it shows the multiple PG options for the user to select.
+        render_template(&apos;packaging.html&apos;)
+
+@bp.route(&apos;/&apos;,  methods=(&apos;GET&apos;, &apos;POST&apos;))
+def packaging():
+    if request.method == &apos;POST&apos;:
+        un_id = request.form[&apos;un_id&apos;]
+        bulk = request.form.get(&apos;bulk&apos;)
+        hazmat_db = db.get_db()
+        if not request.form.get(&apos;packing-group&apos;):
+            #check_packaging(un_id, hazmat_db)
+            pg = None
+        else:
+            pg = request.form[&apos;packing-group&apos;]
+        error = None
+      
+
+        if not un_id:
+            error = &apos;UNID is required.&apos;
+        else:
+            render_results = code_lookup.build_results(
+                un_id, 
+                True if bulk == &quot;on&quot; else False,
+                pg,
+                hazmat_db)
+            return render_template(
+                &apos;packaging.html&apos;, len=len(render_results[&apos;text&apos;]), results=render_results)
+
+
+        flash(error)
+
+    return render_template(&apos;packaging.html&apos;)
+
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\packaging_codes.py" name="packaging_codes.py">
+    <content>import networkx as nx
+import regex as re
+from . import clean_text as ct
+from . import patterns
+
+&apos;&apos;&apos;
+TO DO:
+Change this to be a class tha represents performance packaging standards in general.
+Convert specific sections to be children of this class.
+&apos;&apos;&apos;
+
+class PackagingCodes:
+    def __init__(self, db, soup):
+        self.db = db
+        self.soup = soup
+        self.categories = []
+        self.part = None
+        self.perf_code_pattern = re.compile(patterns.PERF_PACKAGING)
+        self.spec_code_pattern = re.compile(patterns.SPEC_PACKAGING_INSTRUCTIONS)
+        self.agency_patterns = [re.compile(p) for p in patterns.AA_PATTERN]
+
+    def grab_agency_code_pattern(self, req):
+        &apos;&apos;&apos;
+        Loops through paragraphs in a section and returns all the codes found in the form
+        of a list of tuples for insertion into the database with the info 
+        (requirement, authorizing_agency, packaging_code, pattern_match)
+        &apos;&apos;&apos;
+        paragraphs = self._grab_paragraphs(req)
+        if paragraphs:
+            codes = []
+            for p in paragraphs:
+                agency_spans = []
+                agencies = []
+                code_spans = []
+                for agency_pattern in self.agency_patterns:
+                    for m in agency_pattern.finditer(p[1]):
+                        agency_spans.append(m.span())
+                        agencies.append(m.group())
+                for m in self.spec_code_pattern.finditer(p[1]):
+                    code_span = m.span()
+                    code = m.group()
+                    diffs = {code_span[0] - agency[0]: i \
+                        for i, agency in enumerate(agency_spans)}
+                    positive_vals = [i for i in diffs.keys() if i &gt; 0]
+                    closest_agency = agencies[diffs[min(positive_vals)]]
+                    codes.append(
+                        (req, closest_agency, code, &apos;spec&apos;, p[0], code_span[0], code_span[1])
+                    )
+                    code_spans.append(code_span)
+                for m in self.perf_code_pattern.finditer(p[1]):
+                    code_span = m.span()
+                    code = m.group()
+                    if not self._check_overlap(code_span, code_spans):
+                        codes.append(
+                            (req, None, code, &apos;perf&apos;, p[0], code_span[0], code_span[1])
+                        )
+            return codes
+
+    def grab_pattern_match_spans(self, p):
+        &apos;&apos;&apos;
+        Takes a paragraph and returns a list of character spans to be highlighted
+        for specification and performance codes. This includes the nearest preceding
+        agency abbreviation (i.e. DOT, AAR, etc.) It checks for SPEC_PACKAGING_INSTRUCTIONS
+        first, checks for the agencies, and then checks for PERF_PACKAGING last to avoid
+        overlap.
+        &apos;&apos;&apos;
+        matches = []
+        agencies = []
+        for agency_pattern in self.agency_patterns:
+            for m in agency_pattern.finditer(p):
+                agencies.append(m.span())
+        for m in self.spec_code_pattern.finditer(p):
+            code_span = m.span()
+            diffs = {code_span[0] - agency[0]: i \
+                for i, agency in enumerate(agencies)}
+            positive_vals = [i for i in diffs.keys() if i &gt; 0]
+            closest_span = agencies[diffs[min(positive_vals)]]
+            if not closest_span in matches:
+                matches.append(closest_span)
+            matches.append(code_span)
+        for m in self.perf_code_pattern.finditer(p):
+            code_span = m.span()
+            if not self._check_overlap(code_span, matches):
+                matches.append(code_span)
+        return matches
+    
+    def _check_overlap(self, code_span, matches):
+        for match in matches:
+            for i in range(code_span[0], code_span[1]):
+                if i &gt;= match[0] and i &lt; match[1]:
+                    return True
+        return False
+    
+    def _grab_paragraphs(self, section):
+        section_tag = self.soup.get_section_text(section)
+        if section_tag:
+            paragraphs = self.soup.get_section_paragraphs(section)
+            return [(d, p) for d, p in paragraphs.nodes().data(&apos;paragraph&apos;)]
+
+    def get_spans_paragraphs(self, section):
+        &apos;&apos;&apos;
+        Extracts packaging codes and the associated text in its tag
+        NOte: removed start and end functionality from this. let it loop through in child classes.
+        TO DO: convert into a single function which parses both performance and spec packaging.
+        &apos;&apos;&apos;
+        paragraphs = self._grab_paragraphs(section)
+        if paragraphs:
+            spans = []
+            for p in paragraphs:
+                spans.append(self.grab_pattern_match_spans(p[1]))
+            return spans, paragraphs
+            
+    def get_codes(self, req):
+        spans_paragraphs = self.get_spans_paragraphs(req)
+        if spans_paragraphs:
+            codes, descs = spans_paragraphs
+            packaging_ids = []
+            for spans, desc in zip(codes, descs):
+                for span in spans:
+                    packaging_ids.append(desc[1][span[0]: span[1]])
+            return packaging_ids
+
+
+    def get_codes_descriptions(self, section):
+        spans, paragraphs = self.get_spans_paragraphs(section)
+        codes = [p[s[0][0]:s[-1][1] + 1].strip() for p, s in zip(paragraphs, spans) if s]
+        descs = []
+        for p, s in zip(paragraphs, spans):
+            if s:
+                code_span = (s[0][0], s[-1][1] + 1)
+                if code_span[0] == 0:
+                    descs.append(p[code_span[1]:len(p)].strip())
+                elif code_span[1] - 1 == len(p):
+                    descs.append(p[0:code_span[0]].strip())
+                else:
+                    #TO DO: Figure out what to do in a potential case where the codes are in the middle.
+                    #For now, just take the end
+                    descs.append(p[code_span[1]:len(p)].strip())
+        return tuple(zip(codes, descs))
+
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\patterns.py" name="patterns.py">
+    <content>&apos;&apos;&apos;
+Codes below look for performance packaging and tank car codes in part 173.
+&apos;&apos;&apos;
+PERF_PACKAGING = &quot;([\d]{1,2}[A-Z]+\d*)&quot;
+SPEC_PACKAGING_INSTRUCTIONS = &quot;(?&lt;=\s)(\d{2,}[A-Z]*\d*[A-Z]*)(?=[\s,].*tank)(?!\s°)&quot;
+AUTHORIZING_AGENCIES = [&apos;AAR&apos;, &apos;DOT&apos;, &apos;IM&apos;, &apos;MC&apos;, &apos;TC&apos;]
+AA_PATTERN = [&quot;(?=[^\s])&quot; + agency for agency in AUTHORIZING_AGENCIES]
+
+&apos;&apos;&apos;
+Pattern to verify an explosives packaging instruction
+&apos;&apos;&apos;
+PI_PATTERN = &quot;\d{3}(\([a-z]\))*&quot;
+
+&apos;&apos;&apos;
+SPEC_PACKAGING parses two groups, the first being the code and the 2nd being the
+description.
+
+ex:
+Within &quot;Specification 2P; inner nonrefillable metal receptacles.&quot;, it finds &quot;2P&quot; and
+&quot;inner nonrefillable metal receptacles&quot;
+&apos;&apos;&apos;
+SPEC_PACKAGING = &quot;(?&lt;=(?&lt;=S|s)pecification\s)([A-Z0-9]+[\s-]*[A-Z]*[0-9]+[A-Z0-9]*)(?=\sand\s)*(?=;*\s([^.]*)\.*)&quot;
+
+&apos;&apos;&apos;
+SPEC_PACKAGING_2 parses the description from the above pattern to check for another code
+followed by the word &apos;and&apos;.
+ex:
+Within &quot;Specification 3A and 3AX seamless steel cylinders.&quot;, SPEC_PACKAGING will find
+groups &apos;3A&apos; and &apos;and 3AX seamless steel cylinders&apos;. SPEC_PACKAGING_2 will parse out
+ &apos;and 3AX seamless steel cylinders&apos; into &apos;3AX&apos; and &apos;seamless steel cylinders&apos;.
+&apos;&apos;&apos;
+SPEC_PACKAGING_2 = &quot;(?&lt;=and\s)(\d[A-Z]+)(?=\s(.*))&quot;
+
+&apos;&apos;&apos;
+TANK_CAR_CODE parses tank car codes out of the subpart headers of part 179 and
+TANK_CAR_DESCRIPTION grabs its description.
+
+ex:
+Within &quot;Subpart C—Specifications for Pressure Tank Car Tanks (Classes DOT-105, 109, 112,
+114, and 120)&quot;, TANK_CAR_CODE would grab [&apos;105&apos;, &apos;109&apos;, &apos;112&apos;, &apos;114&apos;, &apos;120&apos;] and
+TANK_CAR_DESCRIPTION would grab [&apos;Pressure Tank Car Tanks&apos;].
+&apos;&apos;&apos;
+TANK_CAR_CODE = &quot;(?&lt;=DOT.*)(\d{3}[A-Z]{0,3})(?=[\W$])&quot;
+TANK_CAR_DESCRIPTION = &apos;(?&lt;=Specifications\sfor\s)[\w-\s]*(?=\s\()&apos;</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\performance_packaging.py" name="performance_packaging.py">
+    <content>import regex as re
+
+from .packaging_codes import PackagingCodes
+from .soup import Soup
+
+class PerformancePackaging(PackagingCodes):
+
+    def __init__(self, db, soup):
+        PackagingCodes.__init__(self, db, soup)
+        self.START = 503
+        self.END = 940
+        #self.code_descriptions = self.get_codes_descriptions(self.START, self.END)
+        self.part = 178
+
+    def parse_standards(self):
+        standards = []
+        for section in range(self.START, self.END + 1):
+            codes = self.grab_agency_code_pattern(&quot;{}.{}&quot;.format(self.part, section))
+            if codes:
+                standards += codes
+        return standards
+    
+
+    def create_packaging_standards_table(self):
+        self.db.execute(&apos;&apos;&apos;
+            DROP TABLE IF EXISTS packaging_standards;
+        &apos;&apos;&apos;)
+        self.db.execute(&apos;&apos;&apos;
+            CREATE TABLE packaging_standards (
+                section integer,
+                authorizing_agency text,
+                packaging_code text not null,
+                type text,
+                paragraph text,
+                span_0 integer,
+                span_1 integer,
+                FOREIGN KEY(packaging_code) REFERENCES packaging_requirements(packaging_code)
+            );
+        &apos;&apos;&apos;)
+
+    def load_packaging_standards(self):
+        self.create_packaging_standards_table()
+        self.db.executemany(&apos;&apos;&apos;
+            INSERT INTO packaging_standards (
+                section,
+                authorizing_agency,
+                packaging_code,
+                paragraph,
+                type,
+                span_0,
+                span_1
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?
+            )
+        &apos;&apos;&apos;, self.parse_standards())</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\pg_lookup.py" name="pg_lookup.py">
+    <content>from flask import request, render_template
+
+from . import db
+
+def pg_lookup():
+    un_id = request.args.get(&quot;un&quot;)
+    hazmat_db = db.get_db().cursor()
+    hazmat_db.execute(&quot;SELECT pg FROM hazmat_table WHERE unna_code = &apos;{}&apos;&quot;.format(un_id))
+    db_rows = hazmat_db.fetchall()
+    pgs = [row[&apos;pg&apos;] for row in db_rows]
+    return {&quot;pgs&quot;: pgs}</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\soup.py" name="soup.py">
+    <content>from collections import defaultdict
+import logging
+import os
+
+import regex as re
+import requests
+import bs4
+import xml.etree.ElementTree as ET
+import networkx as nx
+
+from . import clean_text as ct
+
+class Soup:
+    CACHE_DIRECTORY = &quot;cfr_cache&quot;
+
+    def __init__(self, volume):
+        if not os.path.exists(self.CACHE_DIRECTORY):
+            os.mkdir(self.CACHE_DIRECTORY)
+        self.cfr = self.get_cfr_xml(volume)
+        self.parsed_soup = bs4.BeautifulSoup(self.cfr, &apos;lxml&apos;)
+        self.volume = volume
+
+
+    def get_cfr_xml(self, volume):
+        # govinfo xml url from which to parse the hazmat table
+        self.url = &apos;https://www.govinfo.gov/content/pkg/CFR-2021-title49-vol{}/xml/CFR-2021-title49-vol{}-subtitleB-chapI.xml&apos;.format(
+            str(volume), str(volume)
+        )
+        self.cache_path = os.path.join(self.CACHE_DIRECTORY, self.url.split(&quot;/&quot;)[-1] )
+        if os.path.exists(self.cache_path):
+            logging.info(&quot;using cached CFR volume {}&quot;.format(volume))
+            with open(self.cache_path, encoding=&quot;utf-8&quot;) as cache_xml:
+                xml = cache_xml.read()
+        else:
+            logging.info(&quot;downloading fresh CFR volume {}&quot;.format(volume))
+            xml = requests.get(self.url).text
+            with open(self.cache_path, &quot;w+&quot;, encoding=&quot;utf-8&quot;) as cache_xml:
+                cache_xml.write(xml)
+ 
+        return xml
+            
+    
+    def find_table(self, table_title):
+        tables = self.parsed_soup.find_all(&apos;gpotable&apos;)
+        return [table for table in tables if table.find(&apos;ttitle&apos;) \
+            and table_title in table.find(&apos;ttitle&apos;).text][0]
+    
+    def get_section_text(self, section):
+        section_tag = self.parsed_soup.find(
+            &apos;sectno&apos;, text=&quot;§ {}&quot;.format(section))
+        if section_tag:
+            return section_tag.parent
+
+    def get_section_paragraphs(self, section):
+        &quot;&quot;&quot;
+        returns: a networkx graph object of the paragraphs of this section
+        &quot;&quot;&quot;
+        section_text = self.get_section_text(section)
+        paragraphs = section_text.find_all([&quot;p&quot;, &quot;fp&quot;])
+        indexed = list(self.gen_paragraph_tree(paragraphs))
+        ret_tree = nx.Graph()
+        if indexed:
+            for ix, paragraph in indexed:
+                canonical = &quot;.&quot;.join(i for i in ix if i)
+                parent = &quot;.&quot;.join(canonical.split(&quot;.&quot;)[:-1])
+                ret_tree.add_node(canonical, paragraph=paragraph)
+                if parent:
+                    ret_tree.add_edge(parent, canonical)
+        elif paragraphs:
+            #This deals with an edge case where there are paragraphs without any subparagraphs
+            for paragraph in paragraphs:
+                ret_tree.add_node(None, paragraph=paragraph)
+        return ret_tree 
+
+
+    @staticmethod
+    def gen_paragraph_tree(paragraphs):
+        # this reflects the nested paragraph structure
+        # e.g. you could look at
+        # part 178 section 500 paragraph a subparagraph 1
+        # sub-sub paragraph i sub-sub-sub paragraph A
+        # i.e. 178.500 (a)(1)(i)(A)
+        letter_pattern = re.compile(r&apos;\((?=[a-z])([^i])\)&apos;) #all chars except i
+        number_pattern = re.compile(r&apos;\(([0-9]+)\)&apos;)
+        numeral_pattern = re.compile(r&apos;\(([ivx]+)\)&apos;) # this is horrible
+        uppercase_letter_pattern = re.compile(r&apos;\(([A-Z])\)&apos;)
+
+        patterns = (letter_pattern, number_pattern, numeral_pattern, uppercase_letter_pattern)
+        start_chars = {letter_pattern: &apos;a&apos;,
+                       number_pattern: &apos;1&apos;,
+                       numeral_pattern: &apos;i&apos;,
+                       uppercase_letter_pattern: &apos;A&apos;}
+        # letter, number, numeral, uppercase
+        indices = [None, None, None, None, None]
+        upper_roman = &apos;I&apos;
+        def _reset_indices_after(ix):
+            for i in range(ix + 1, len(indices)):
+                indices[i] = None
+        current_match_ix = 0
+        for pi, paragraph in enumerate(paragraphs):
+            par_text = paragraph.text
+            beginning = par_text.strip()[:6]
+            for ix, pattern in enumerate(patterns):
+                match = pattern.findall(beginning)
+                if match:
+                    assert len(match) == 1
+                    indices[ix + 1] = match[0]
+                    current_match_ix = ix + 1
+                    _reset_indices_after(ix + 1)
+                    
+                    no_beginning = True
+                    sub_idx = pi + 1
+                    while no_beginning and sub_idx &lt; len(paragraphs):
+                        for sub_pattern in patterns:
+                            next_paragraph = paragraphs[sub_idx]
+                            if len(next_paragraph.text.strip()) &gt; 6:
+                                sub_match = sub_pattern.findall(
+                                    next_paragraph.text.strip()[:6])
+                            else:
+                                sub_match = sub_pattern.findall(
+                                    next_paragraph.text.strip())                                
+                            if sub_match:
+                                no_beginning = False
+                                break
+                        if no_beginning:
+                            par_text += &quot;\n&quot;
+                            par_text += next_paragraph.text
+                            sub_idx += 1
+                    yield tuple(indices), par_text
+
+            if current_match_ix == 0:
+                indices[current_match_ix] = upper_roman
+                upper_roman = ct.int_to_roman(ct.roman_to_int(upper_roman) + 1)
+                _reset_indices_after(0)
+                yield tuple(indices), par_text
+
+
+            </content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\spec_packaging.py" name="spec_packaging.py">
+    <content>from . import soup
+import regex as re
+#need to rename repo without hyphen so this won&apos;t be necessary
+import importlib
+from . import patterns as pattern
+
+class SpecPackaging:
+    def __init__(self, db):
+        self.s = soup.Soup(3)
+        self.db = db
+    
+    def get_sections(self, part):
+        part = self.s.parsed_soup.find_all(&apos;ear&apos;, text=&apos;Pt. {}&apos;.format(part))[0].parent
+        sections = part.find_all(&apos;hd&apos;)
+        return [section for section in sections \
+            if &quot;Subpart&quot; in section.text and &quot;Specifications&quot; in section.text]
+
+    def get_load_sects_subjects(self):
+        sections = self.get_sections(178)
+        output = []
+        for section in sections:
+            sectnos = section.parent.find_all(&apos;sectno&apos;)
+            for sectno in sectnos:
+                subject = sectno.find_next()
+                if subject.name != &apos;subject&apos;:
+                    continue
+                spec_pattern = re.compile(pattern.SPEC_PACKAGING)
+                match = spec_pattern.findall(subject.text)
+                if not match:
+                    continue
+                assert len(match) == 1
+                description = match[0][1]
+                spec_pattern_2 = re.compile(pattern.SPEC_PACKAGING_2)
+                match_2 = spec_pattern_2.findall(description)
+                if match_2:
+                    description = match_2[0][1]
+                    output.append((sectno.text, match_2[0][0], description))
+                output.append((sectno.text, match[0][0], description))
+        self.create_spec_packaging_table()
+        self.db.executemany(&quot;INSERT INTO spec_packaging VALUES (?, ?, ?)&quot;, output)
+        pass
+
+    def create_spec_packaging_table(self):
+        self.db.execute(&quot;DROP TABLE IF EXISTS spec_packaging;&quot;)
+        self.db.execute(&apos;&apos;&apos;
+            CREATE TABLE spec_packaging(
+                section text,
+                packaging_code text,
+                description text
+            );
+        &apos;&apos;&apos;)
+
+    def create_tank_car_table(self):
+        self.db.execute(&quot;DROP TABLE IF EXISTS tank_cars;&quot;)
+        self.db.execute(
+            &apos;&apos;&apos;
+            CREATE TABLE tank_cars (
+                packaging_code varchar,
+                description text,
+                part text,
+                subpart integer
+            );
+            &apos;&apos;&apos;
+        )
+        pass
+    
+    def get_load_tank_cars(self):
+        self.create_tank_car_table()
+        subparts = self.get_sections(179)
+        insert = []
+        for subpart in subparts:
+            tank_car_pattern = re.compile(pattern.TANK_CAR_CODE)
+            codes = tank_car_pattern.findall(subpart.text)
+            description_pattern = re.compile(pattern.TANK_CAR_DESCRIPTION)
+            description = description_pattern.findall(subpart.text)
+            for code in codes:
+                insert.append((code, description[0], &apos;179&apos;, subpart.text))
+        self.db.executemany(&quot;INSERT INTO tank_cars VALUES (?, ?, ?, ?)&quot;, insert)
+        pass</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\table.py" name="table.py">
+    <content>import sqlite3
+import re
+
+class HazmatTable:
+    def __init__(self, db, soup):
+        # Maps hazmat table column numbers containing nonunique values to new tables and column names
+        self.nonunique_map = {
+            0: (&quot;symbols&quot;, &quot;symbol&quot;),
+            1: (&quot;proper_shipping_names&quot;, &quot;proper_shipping_name&quot;),
+            5: (&quot;label_codes&quot;, &quot;label_code&quot;),
+            6: (&quot;special_provisions&quot;, &quot;special_provision&quot;),
+            7: (&quot;packaging_exceptions&quot;, &quot;exception&quot;),
+            13: (&quot;other_provisions&quot;, &quot;other_provision&quot;)
+        }
+        self.db = db
+        self.soup = soup
+        self.see_shipping_names = []
+
+
+    def create_nonunique_table(self, table_name, col_name):
+        self.db.executescript(&quot;DROP TABLE IF EXISTS {};&quot;.format(table_name))
+        script = &apos;&apos;&apos;
+                CREATE TABLE {} (
+                row_id integer not null,
+                {} text,
+                FOREIGN KEY (row_id) REFERENCES hazmat_table (row_id)
+                )&apos;&apos;&apos;.format(table_name, col_name)
+        
+        self.db.executescript(script)
+        
+    def create_packaging_instructions_table(self):
+        self.db.executescript(
+            &apos;&apos;&apos;
+            DROP TABLE IF EXISTS packaging_instructions;
+            &apos;&apos;&apos;
+        )
+        self.db.executescript(
+            &apos;&apos;&apos;
+            CREATE TABLE packaging_instructions (
+                row_id integer not null,
+                section text,
+                bulk integer,
+                FOREIGN KEY (row_id) REFERENCES hazmat_table (row_id)
+            )
+            &apos;&apos;&apos;
+        )
+
+
+    def load_nonunique_table(self, row_id, text, table_name, col_name):
+        if table_name == &quot;symbols&quot;:
+            split_text = re.findall(&quot;[A-Z]&quot;, text)
+            entries = [(row_id, entry.replace(&quot;&apos;&quot;, &quot;&apos;&apos;&quot;).strip()) for entry in split_text]
+        elif table_name == &quot;proper_shipping_names&quot;:
+            entries = [(row_id, text)]
+
+        else:
+            # TO DO: some are split on &quot;,&quot; without a space
+            split_text = text.split(&quot;,&quot;)
+            entries = [(row_id, entry.replace(&quot;&apos;&quot;, &quot;&apos;&apos;&quot;).strip()) for entry in split_text]
+        self.db.executemany(
+            &quot;INSERT INTO {} (row_id, {}) VALUES (?, ?)&quot;.format(
+                table_name, col_name),
+            entries)
+    
+    def load_packaging_instructions(self, row_id, section_num, i):
+        if section_num.isdigit():
+            self.db.execute(
+                &apos;&apos;&apos;
+                INSERT INTO packaging_instructions (row_id, section, bulk) VALUES (
+                    {}, {}, {}
+                )
+                &apos;&apos;&apos;.format(
+                    row_id, &quot;173.&quot; + section_num, 0 if i == 8 else 1
+                )
+            )
+
+
+    def create_hazmat_entries(self):
+        &apos;&apos;&apos;
+        This loops through the hazmat table to create entries for insertion and
+        simultaneously calls &apos;load_nonunique_table&apos; to insert values into those tables
+        while parsing.
+        &apos;&apos;&apos;
+        hazmat_tables = self.soup.find_table(&apos;Hazardous Materials Table&apos;)
+        pk = 1
+        entries = []
+        rows = hazmat_tables.find_all(&apos;row&apos;)[1:]
+        #Checking that first row is &apos;Accellerene&apos;
+        assert &apos;Accellerene&apos; in rows[0].find_all(&apos;ent&apos;)[1].text.strip()
+        for row in rows:
+            skip_row = False
+            ents = row.find_all(&apos;ent&apos;)
+            vals = [pk]
+            for i, ent in enumerate(ents):   
+                if ent:             
+                    if ent.text.strip() == &apos;&apos; and i == 3:
+                        &apos;&apos;&apos;
+                        i == 3 is the UNNA column. If it&apos;s blank, load the prior UNNA. If
+                        the prior name and hazard class from the previous entry wasn&apos;t
+                        blank, copy from those and load in the prior entry&apos;s symbol if it
+                        wasn&apos;t blank.
+                        &apos;&apos;&apos;
+                        vals.append(entries[-1][2])
+                        if not vals[1]:
+                            vals[1] = entries[-1][1]
+                        if not vals[2]:
+                            vals[2] = entries[-1][2]
+                        if prior_symbol != &apos;&apos;:
+                            self.load_nonunique_table(
+                                pk, prior_symbol, *self.nonunique_map[0])
+                        self.load_nonunique_table(
+                            pk, prior_psn, *self.nonunique_map[1]
+                        )
+                    elif i == 3:
+                        prior_symbol = symbol
+                    if i == 0:
+                        symbol = ent.text.strip()
+                    if ent.text.strip() != &apos;&apos;:
+                        if i in self.nonunique_map.keys():
+                            if i == 1 and &quot; see &quot; in ent.text and len(ents) &lt; 3:
+                                &apos;&apos;&apos;
+                                If the proper shipping name has &apos; see &apos; in it and
+                                there is no UNNA value in that row, we temporarily
+                                load with a row_id of 0 and go back one row_id.
+                                &apos;&apos;&apos;
+                                pk -= 1
+                                self.see_shipping_names.append(ent.text)
+                                skip_row = True
+                                continue
+                            else:
+                                if i == 1:
+                                    prior_psn = ent.text
+                                self.load_nonunique_table(
+                                    pk, ent.text, *self.nonunique_map[i])
+                        elif i == 8 or i == 9:
+                            self.load_packaging_instructions(pk, ent.text, i)
+                        else:
+                            vals.append(ent.text.strip().replace(&quot;&apos;&quot;, &quot;&apos;&apos;&quot;))                           
+                    elif not i in self.nonunique_map.keys() and i != 3:
+                        vals.append(None)
+            pk += 1
+            if skip_row:
+                continue
+            vals = (vals + [None] * 7)[:7]
+            assert len(vals) == 7
+            entries.append(tuple(vals))
+        return entries
+
+    def create_load_hazmat_data(self):
+        self.db.executescript(&quot;DROP TABLE IF EXISTS hazmat_table;&quot;)
+        for table_name, column in self.nonunique_map.values():
+            self.create_nonunique_table(table_name, column)
+        self.create_packaging_instructions_table()
+        self.db.executescript(
+            &apos;&apos;&apos;
+            CREATE TABLE hazmat_table (
+                row_id integer not null primary key,
+                class_division text,
+                unna_code text, pg text, passenger_max_quant text,
+                cargo_max_quant text, stowage_location text
+            );
+            &apos;&apos;&apos;
+        )
+        self.db.executescript(&quot;DROP TABLE IF EXISTS packaging_requirements;&quot;)
+        self.db.executescript(
+            &apos;&apos;&apos;
+            CREATE TABLE IF NOT EXISTS packaging_requirements (
+                section text,
+                authorizing_agency text,
+                packaging_code text,
+                pattern_match text,
+                paragraph text,
+                span_0 integer,
+                span_1 integer
+            )
+            &apos;&apos;&apos;
+        )
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO &apos;hazmat_table&apos; (
+                &apos;row_id&apos;,
+                &apos;class_division&apos;,
+                &apos;unna_code&apos;,
+                &apos;pg&apos;,
+                &apos;passenger_max_quant&apos;,
+                &apos;cargo_max_quant&apos;,
+                &apos;stowage_location&apos;
+                )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            &apos;&apos;&apos;, self.create_hazmat_entries()
+        )
+        self.handle_see_shipping_names()
+
+    def handle_see_shipping_names(self):
+        see_names_load = []
+        for name in self.see_shipping_names:
+            assert &apos; see &apos; in name
+            see_name = name[name.find(&apos; see &apos;) + 5:].strip()
+            real_row_id = self.db.execute(
+                &apos;&apos;&apos;
+                SELECT row_id
+                FROM proper_shipping_names
+                WHERE proper_shipping_name = ?
+                &apos;&apos;&apos;, [see_name]
+            )
+            row_id = real_row_id.fetchone()
+            if row_id:
+                see_names_load.append((row_id[0], name))
+            # TO DO: think of a way to address names that refer to more than one other row
+        self.db.executemany(
+            &apos;&apos;&apos;
+            INSERT INTO proper_shipping_names (
+                &apos;row_id&apos;,
+                &apos;proper_shipping_name&apos;
+            )
+            VALUES (
+                ?, ?
+            )
+            &apos;&apos;&apos;, see_names_load
+        )
+            
+                        
+
+    def get_packaging_173(self, bulk, row_id):
+        if bulk:
+            table_name = &quot;bulk_packaging&quot;
+        else:
+            table_name = &quot;non_bulk_packaging&quot;
+        requirement = self.db.execute(
+            &apos;&apos;&apos;
+            SELECT requirement FROM {} 
+            WHERE row_id = {}
+            &apos;&apos;&apos;.format(
+                table_name, row_id))
+        section = requirement.fetchall()[0][0]
+        return self.soup.get_section_text(173, int(section))
+
+    </content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\__init__.py" name="__init__.py">
+    <content>import os
+
+from flask import Flask
+import sqlite3
+
+from . import soup
+#import soup
+
+
+def create_app(test_config=None):
+    # create and configure the app
+    app = Flask(__name__, instance_relative_config=True)
+    app.config.from_mapping(
+        SECRET_KEY=&apos;dev&apos;,
+        DATABASE=os.path.join(app.instance_path, &apos;hazmat-parser.sqlite&apos;),
+    )
+
+    if test_config is None:
+        # load the instance config, if it exists, when not testing
+        app.config.from_pyfile(&apos;config.py&apos;, silent=True)
+    else:
+        # load the test config if passed in
+        app.config.from_mapping(test_config)
+
+    # ensure the instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+
+    @app.route(&apos;/cfr_tool&apos;)
+    def cfr_tool():
+        return &apos;Welcome to the cfr tool&apos;
+
+    from . import db
+    db.init_app(app)
+
+    from . import packaging
+    app.register_blueprint(packaging.bp)
+    app.add_url_rule(&apos;/&apos;, endpoint=&apos;packaging&apos;)
+
+    from . import code_lookup
+    app.add_url_rule(&apos;/code_lookup&apos;, &apos;code_lookup&apos;, code_lookup.code_lookup)
+
+    from . import pg_lookup
+    app.add_url_rule(&apos;/pg_lookup&apos;, &apos;pg_lookup&apos;, pg_lookup.pg_lookup)
+
+    return app
+
+
+def debug_harness(db_name = &quot;instance/hazmat-parser.sqlite&quot;):
+    from importlib import reload
+    reload(soup)
+    s2 = soup.Soup(2)
+    s3 = soup.Soup(3)
+    db = sqlite3.connect(db_name)
+    return s2, s3, db
+</content>
+  </file>
+  <file path="/users/nico_chemwatch/OneDrive - Ucorp Pty Ltd T A Chemwatch/documents/python/Transport of dangerous goods  - Cleanup/hazmat-parser\cfr_tool\templates\packaging.html" name="packaging.html">
+    <content>&lt;!doctype html&gt;
+
+&lt;head&gt;
+
+    &lt;link rel=&quot;stylesheet&quot; href=&quot;https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css&quot; integrity=&quot;sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm&quot; crossorigin=&quot;anonymous&quot;&gt;
+    &lt;style&gt;
+        .packaging-container {
+            display: flex;
+        }
+        
+        div {
+            padding: 10px;
+        }
+        
+        .entry {
+            margin-right: 5px
+        }
+        
+        #packaging-requirements {
+            flex: 60%;
+        }
+        
+        #placeholder {
+            position: relative;
+            flex: 40%;
+        }
+        
+        #packaging-standards {
+            position: sticky;
+            top: 0;
+            border: 3px solid #73AD21;
+            padding: 10px
+        }
+        
+        #hazmat {
+            background-color: lightgrey;
+            text-align: center;
+            position: sticky;
+            top: 0
+        }
+    &lt;/style&gt;
+&lt;/head&gt;
+
+&lt;body&gt;
+
+    &lt;title&gt;Hazmat Lookup Tool&lt;/title&gt;
+
+    &lt;section class=&quot;form&quot;&gt;
+        &lt;form method=&quot;post&quot;&gt;
+            &lt;div&gt;
+                &lt;h1&gt;Packaging regulations lookup&lt;/h1&gt;
+                &lt;span class=&quot;entry&quot;&gt;
+                    &lt;label for=&quot;un_id&quot;&gt;UNNA Number&lt;/label&gt;
+                    &lt;input name=&quot;un_id&quot; id=&quot;un_id&quot; required&gt;
+                &lt;/span&gt;
+                &lt;span class=&quot;entry&quot;&gt;
+                    &lt;label for=&quot;bulk&quot;&gt;Bulk Packaging?&lt;/label&gt;
+                    &lt;span data-toggle=&quot;tooltip&quot; data-html=&quot;true&quot; title=&quot;&lt;p&gt;Bulk packaging means a packaging, other than a vessel or a barge, including a transport vehicle or freight container, in which hazardous materials are loaded with no intermediate form of containment. A Large Packaging in which hazardous materials are loaded with an intermediate form of containment, such as one or more articles or inner packagings, is also a bulk packaging. Additionally, a bulk packaging has:&lt;/p&gt;&lt;p&gt;(1) A maximum capacity greater than 450 L (119 gallons) as a receptacle for a liquid;&lt;/p&gt;&lt;p&gt;(2) A maximum net mass greater than 400 kg (882 pounds) and a maximum capacity greater than 450 L (119 gallons) as a receptacle for a solid; or&lt;/p&gt;&lt;p&gt;(3) A water capacity greater than 454 kg (1000 pounds) as a receptacle for a gas as defined in § 173.115 of this subchapter.&lt;/p&gt;&quot;&gt;
+                        &lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;16&quot; height=&quot;16&quot; fill=&quot;currentColor&quot; class=&quot;bi bi-info-circle&quot; viewBox=&quot;0 0 16 16&quot;&gt;
+                            &lt;path d=&quot;M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z&quot;/&gt;
+                            &lt;path d=&quot;M8.93 6.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z&quot;/&gt;
+                        &lt;/svg&gt;
+                    &lt;/span&gt;
+                &lt;input type=&quot;checkbox&quot; name=&quot;bulk&quot; id=&quot;bulk&quot;&gt;
+                &lt;/span&gt;
+            &lt;/div&gt;
+            &lt;span class=&quot;entry&quot;&gt;
+                &lt;div id=&quot;packing-group&quot;&gt;
+                &lt;/div&gt;
+            &lt;/span&gt;
+            &lt;button type=&quot;button&quot; class=&quot;btn btn-primary&quot;&gt;Search&lt;/button&gt;
+
+        &lt;/form&gt;
+
+        {% for message in get_flashed_messages() %}
+        &lt;div class=&quot;flash&quot;&gt;{{ message }}&lt;/div&gt;
+        {% endfor %}
+
+    &lt;/section&gt;
+
+    {% if results %}
+    &lt;div&gt;
+        &lt;h1 id=&quot;hazmat&quot;&gt;{{ results[&apos;bulk&apos;] }} Packaging Instructions for {{ results[&apos;UNID&apos;] }}{% if results[&apos;pg&apos;] %} packing group {{ results[&apos;pg&apos;]}}{% endif %}: &lt;u&gt;{{ results[&apos;hazmat_name&apos;] }} &lt;/u&gt;&lt;/h1&gt;
+        &lt;h2&gt;Quantity Limitations&lt;/h2&gt;
+        &lt;h2&gt;Special Provisions&lt;/h2&gt;
+        {%for i in range(0, len)%}
+        &lt;p&gt;{{results[&apos;special_provisions&apos;][i]|safe}}&lt;/p&gt;
+        {%endfor%}
+    &lt;/div&gt;
+    &lt;div class=&quot;packaging-container&quot;&gt;
+        &lt;div id=&quot;packaging-requirements&quot; class=&quot;column&quot;&gt;
+
+            &lt;h2&gt;{{ results[&apos;part_num&apos;] }}&lt;/h2&gt;
+            &lt;h3&gt;Click on highlighted packaging codes to view its packaging standards to the right.&lt;/h3&gt;
+            {%for i in range(0, len)%}
+            &lt;p&gt;{{results[&apos;text&apos;][i]|safe}}&lt;/p&gt;
+            {%endfor%}
+        &lt;/div&gt;
+        &lt;div id=&quot;placeholder&quot; class=&quot;column&quot;&gt;
+            &lt;div id=&quot;packaging-standards&quot;&gt;
+                &lt;h1&gt;Packaging Standards&lt;/h1&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+    {% endif %}
+
+    &lt;script src=&quot;//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js&quot;&gt;&lt;/script&gt;
+    &lt;script&gt;
+        window.jQuery || document.write(&quot;&lt;script src=&apos;{{url_for(&apos;static&apos;, filename=&apos;jquery-3.5.1.js&apos;) }}&apos;&gt;\x3C/script&gt;&quot;)
+    &lt;/script&gt;
+    &lt;script type=text/javascript&gt;
+        $(function() {
+            $(document).ready(function() {
+                $(&apos;[data-toggle=&quot;tooltip&quot;]&apos;).tooltip();
+            });
+            $(&apos;button&apos;).click(function() {
+                if ($(&quot;input[name=&apos;packing-group&apos;]:checked&quot;).length) {
+                    var url = &apos;/code_lookup?un=&apos; + $(&quot;input#un_id&quot;).val() + &apos;&amp;bulk=&apos; + $(&apos;input#bulk&apos;).is(&quot;:checked&quot;) + &apos;&amp;pg=&apos; + $(&quot;input[name=&apos;packing-group&apos;]:checked&quot;)[0].id
+                    window.location.replace(url)
+                }
+                var json_output = $.getJSON(&apos;/pg_lookup&apos;, {
+                        un: $(&quot;input#un_id&quot;).val()
+                    },
+                    function(data) {
+                        if (data.pgs.length &gt; 1) {
+                            var pg_form = document.getElementById(&quot;packing-group&quot;);
+                            var pg_html = &quot;&lt;h3&gt;Select a packing group &lt;span data-toggle=&apos;tooltip&apos; title=&apos;Packing group means a grouping according to the degree of danger presented by hazardous materials. Packing Group I indicates great danger; Packing Group II, medium danger; Packing Group III, minor danger.&apos;&gt;&quot; +
+                                &quot;&lt;svg xmlns=&apos;http://www.w3.org/2000/svg&apos; width=&apos;16&apos; height=&apos;16&apos; fill=&apos;currentColor&apos; class=&apos;bi bi-info-circle&apos; viewBox=&apos;0 0 16 16&apos;&gt;&quot; +
+                                &quot;&lt;path d=&apos;M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z&apos;/&gt;&quot; +
+                                &quot;&lt;path d=&apos;M8.93 6.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z&apos;/&gt;&lt;/h3&gt;&lt;/svg&gt;&lt;/span&gt;&quot;
+
+                            for (i = 0; i &lt; data.pgs.length; i++) {
+                                var pg = data.pgs[i]
+                                pg_html += `&lt;input type=&quot;radio&quot; id=&quot;${pg}&quot; name=&quot;packing-group&quot; value=&quot;{pg}&quot;&gt;&lt;label for=&quot;${pg}&quot;&gt;${pg}&lt;/label&gt;&lt;br&gt;`
+                            };
+                            pg_form.innerHTML = pg_html;
+                        } else {
+                            var url = &apos;/code_lookup?un=&apos; + $(&quot;input#un_id&quot;).val() + &apos;&amp;bulk=&apos; + $(&apos;input#bulk&apos;).is(&quot;:checked&quot;)
+                            window.location.replace(url)
+                        }
+
+                    }
+                )
+
+            })
+
+            // $(&apos;mark&apos;).bind(&apos;click&apos;, function(e){
+            //     $.getJSON($SCRIPT_ROOT + &apos;/code_lookup&apos;, e.target.firstChild.data, function)
+            // })
+            var marks = document.getElementsByTagName(&apos;mark&apos;);
+            for (i = 0; i &lt; marks.length; i++) {
+                marks[i].addEventListener(&apos;click&apos;, function(ev) {
+                    ev.preventDefault();
+                    var json_output = $.getJSON(&quot;/code_lookup&quot;, {
+                        code: ev.target.firstChild.data
+                    }, function(data) {
+                        console.log(&quot;code looked up&quot;)
+                        var standards = document.getElementById(&quot;packaging-standards&quot;);
+                        standards.innerHTML = &quot;&lt;h1&gt;Packaging Standards&lt;/h1&gt;&lt;h2&gt;178.&quot; +
+                            data.subpart + &quot;&lt;/h2&gt;&quot; + data.html;
+
+                    })
+                })
+            }
+        });
+    &lt;/script&gt;
+&lt;/body&gt;</content>
+  </file>
+</codebase>

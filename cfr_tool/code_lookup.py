@@ -43,6 +43,7 @@ def build_results(un_id, bulk, pg, db):
         ON hazmat_table.row_id = proper_shipping_names.row_id
         WHERE unna_code = '{}'
         '''.format(clean_unna)
+        
     print(query_text)
     row_id_query = db.execute(query_text)
     #TO DO : make sure that UNNA code and pg uniquely identify each row.
@@ -80,6 +81,11 @@ def build_results(un_id, bulk, pg, db):
 def code_lookup():
     print(flask.request.args)
     un = flask.request.args.get("un", None)
+    try:
+        int(un)
+        un=f"UN{un}"
+    except:
+        un=un
     bulk = flask.request.args.get("bulk", None)
     pg = flask.request.args.get("pg", None)
     code = flask.request.args.get("code", None)
