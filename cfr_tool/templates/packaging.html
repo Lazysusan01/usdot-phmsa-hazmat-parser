@@ -152,7 +152,7 @@
                     menu.addClass('ui-autocomplete'); 
                 }
             });
-            $('packaging-form').submit(function() {
+            $('#packaging-form').submit(function(event) {
                 event.preventDefault();
                 if ($("input[name='packing-group']:checked").length) {
                 var url = '/code_lookup?un=' + $("input#un_id").val() + '&bulk=' + $('input#bulk').is(":checked") + '&pg=' + $("input[name='packing-group']:checked")[0].id;
