@@ -5,4 +5,5 @@ cfr_cache/*
 /node_modules
 /clean_parser_env
 consolidated_code.xml
-codebase2text.py
+codebase2txt.py
+test.py
