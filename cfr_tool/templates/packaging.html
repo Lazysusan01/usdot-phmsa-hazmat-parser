@@ -43,7 +43,7 @@
 
 <body class="bg-blue-100 h-screen">
     <title>Hazmat Lookup Tool</title>
-    <div class="flex flex-col items-center justify-center h-full">
+    <div class="flex flex-col items-center justify-center">
     <section class="form w-full max-w-xs">
         <form method="post">
             <div class='block text-gray-700 text-lg font-bold mb-2 text-center'>
@@ -66,10 +66,9 @@
                 <div id="packing-group">
                 </div>
             </span>
-
         </form>
         {% for message in get_flashed_messages() %}
-        <div class="flash">{{ message }}</div>
+        <div class="flash text-red-500">{{ message }}</div>
         {% endfor %}
     </section>
 
@@ -104,9 +103,12 @@
         window.jQuery || document.write("<script src='{{url_for('static', filename='jquery-3.5.1.js') }}'>\x3C/script>")
     </script>
     <script type="text/javascript">
-        var availableTags = [
-        {'label': 'Ethyl butyl ether', 'value': 'UN1179'}, {'label': 'Ethyl butyrate', 'value': 'UN1180'}, {'label': 'Ethyl chloride', 'value': 'UN1037'}, {'label':'Zinc powder', 'value': 'UN1436'}, {'label': 'Zinc resinate', 'value': 'UN2714'}, {'label': '\n                                    Zirconium, dry, \n                                    coiled wire, finished metal sheets, strip (thinner than 254 microns but not thinner than 18 microns)\n', 'value': 'UN2858'}, {'label': '\n                                    Zirconium, dry, \n                                    finished sheets, strip or coiled wire\n', 'value': 'UN2009'}, {'label': 'Zirconium hydride', 'value': 'UN1437'}, {'label': 'Zirconium nitrate', 'value': 'UN2728'}, {'label': '\n                                    Zirconium picramate, \n                                    dry or wetted with less than 20 percent water, by mass\n', 'value': 'UN0236'}, {'label': '\n                                    Zirconium picramate, wetted \n                                    with not less than 20 percent water, by mass\n', 'value': 'UN1517'}, {'label': 'Zirconium powder, dry', 'value': 'UN2008'}, {'label': 'Zirconium powder, dry', 'value': 'UN2008'}, {'label': 'Zirconium powder, dry', 'value': 'UN2008'}, {'label': '\n                                    Zirconium powder, wetted \n                                    with not less than 25 percent water (a visible excess of water must be present) (a) mechanically produced, particle size less than 53 microns; (b) chemically produced, particle size less than 840 microns\n', 'value': 'UN1358'}, {'label': 'Zirconium scrap', 'value': 'UN1932'}, {'label': 'Zirconium suspended in a liquid', 'value': 'UN1308'}, {'label': 'Zirconium suspended in a liquid', 'value': 'UN1308'}, {'label': 'Zirconium suspended in a liquid', 'value': 'UN1308'}, {'label': 'Zirconium tetrachloride', 'value': 'UN2503'}, {'label': '\nBenzol,\n                                     see Benzene\n                                ', 'value': 'UN1114'}]; 
+        {% if autocomplete_data %}
+        var availableTags = {{  autocomplete_data | tojson }}; 
         console.log(availableTags)
+        {% else %}
+        var availableTags = [];
+        {% endif %}
         $(function() {
             $(document).ready(function() {     
             $('input.autocomplete').autocomplete({

@@ -1,6 +1,6 @@
 import json
 import flask
-from flask import jsonify
+from flask import jsonify, flash
 
 from . import db
 from . import packaging_codes as pc
@@ -12,26 +12,13 @@ import re
 
 bp = flask.Blueprint('packaging', __name__)
 
-def build_autocomplete(db):
-    db_query = '''
-    SELECT proper_shipping_name AS label, unna_code AS value
-    FROM hazmat_table
-    JOIN proper_shipping_names ON hazmat_table.row_id = proper_shipping_names.row_id
-    WHERE unna_code IS NOT NULL
-    '''
-    cursor = db.execute(db_query)
-    results = cursor.fetchall()
-
-    # Transform results into the desired format
-    autocomplete_list = [{'label': row[0], 'value': row[1]} for row in results]
-    print(autocomplete_list)
-    return autocomplete_list
-
 def build_results(un_id, bulk, pg, db):
     un_na_pattern = re.compile('([uU][nN]|[nN][aA])')
     any_digits = re.compile('\d+')
     unna_match = un_na_pattern.search(un_id)
     digits_match = any_digits.search(un_id)
+    if not (unna_match and digits_match):
+        return False
     if digits_match:
         digits = digits_match.group(0)
         if len(digits) <= 4:
@@ -105,15 +92,15 @@ def code_lookup():
     pg = flask.request.args.get("pg", None)
     code = flask.request.args.get("code", None)
     
-    # Autocomplete list
-    # autocomplete_data = build_autocomplete(db.get_db())
-    # print('testing 1212')
-    # print(f'autocomplete_data: {autocomplete_data}')
     if un:
         hazmat_db = db.get_db()
         render_results = build_results(un, bulk, pg, hazmat_db)
-        return flask.render_template(
-            'packaging.html', len=len(render_results['text']), results=render_results)
+        if render_results:
+            return flask.render_template(
+                'packaging.html', len=len(render_results['text']), results=render_results)
+        else:
+            flash("Invalid UN number, format must be UN0000, or 0000")
+            return flask.render_template('packaging.html', results=False)
     if code:
         cur = db.get_db().cursor()
         cur.execute('''
@@ -135,6 +122,4 @@ def code_lookup():
                            "section": section,
                            "html": html_text})
     else:
-        autocomplete_data = [{'label' : 'test1', 'value':'imlosingmymind'}]
-        print(autocomplete_data)
         return flask.render_template("packaging.html", results=False)

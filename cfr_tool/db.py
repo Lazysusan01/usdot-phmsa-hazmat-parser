@@ -74,9 +74,6 @@ def init_db():
     '''
     db.commit()
 
-
-
-
 @click.command('init-db')
 @with_appcontext
 def init_db_command():
