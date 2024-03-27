@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Packaging Regulations Lookup Tool</title>
+</head>
+<style>
+    body {
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        height: 100vh; /* Ensure full height of the viewport */
+        margin: 0; /* Remove default margin */
+    }
+    ol {
+        text-align: left; /* Align the list items to the left */
+    }
+</style>
+<body>
+    <h1>Packaging Regulations Lookup Tool (DOT/CFR)</h1>
+    <p>This tool allows you to search up a hazardous chemical, either by name or UN number. It then returns the packaging information for transporting that chemical in the U.S.</p>
+    <ol>
+        <li>Type either UN{0000}, {0000}, or search the chemical’s name and click on it.</li>
+        <li>You can choose either bulk or non-bulk packaging by the checkbox.</li>
+        <li>Hit enter or click search.</li>
+        <li>If everything works, this should be the expected result, any errors should flash up with what went wrong.</li>
+        <img src="{{ url_for('static', filename='images/Screenshot_2024-03-27.png') }}" alt="Expected Result" width='1000' height='auto'>
+        <li>On the left are the authorized packaging methods, with the packaging codes highlighted in yellow.</li>
+        <li>Clicking the highlighted packaging codes should then show the specifics for that packaging on the right. i.e, the construction methods, materials, thicknesses etc.</li>
+    </ol>
+</body>
+</html>
+
+
+

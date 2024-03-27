@@ -1,5 +1,5 @@
 from flask import (
-    Blueprint, flash, g, make_response, redirect, render_template, request, session, url_for
+    Blueprint, flash, g, make_response, redirect, render_template, request, session, url_for, send_file, send_from_directory    
 )
 
 from . import db
@@ -29,6 +29,14 @@ def build_autocomplete(db):
     # Transform results into the desired format
     autocomplete_list = [{'label': row[0].strip().replace('\n',''), 'value': row[1]} for row in results]
     return autocomplete_list
+
+@bp.route('/help', methods=['GET'])
+def help():
+    return render_template('help.html')
+
+# @bp.route('/static/<path:path>')
+# def static_file(path):
+#     return send_file(path)
 
 @bp.route('/',  methods=('GET', 'POST'))
 def packaging():
