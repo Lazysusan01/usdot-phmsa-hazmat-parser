@@ -1,6 +1,7 @@
 import json
 import flask
 from flask import jsonify, flash
+import re
 
 from . import db
 from . import packaging_codes as pc
@@ -8,15 +9,15 @@ from . import soup
 from . import clean_text as ct
 from . import instructions
 
-import re
-
 bp = flask.Blueprint('packaging', __name__)
 
 def build_results(un_id, bulk, pg, db):
+    # regex pattern for UNNA code
     un_na_pattern = re.compile('([uU][nN]|[nN][aA])')
     any_digits = re.compile('\d+')
     unna_match = un_na_pattern.search(un_id)
     digits_match = any_digits.search(un_id)
+    # if the UNNA code is not in the correct format, return False
     if not (unna_match and digits_match):
         return False
     if digits_match:
@@ -28,8 +29,6 @@ def build_results(un_id, bulk, pg, db):
             else:
                 #If 'UN/NA' prefix isn't specified, we assume "UN"
                 clean_unna = "UN" + ("0000" + digits)[:4]
-    print("clean unna")
-    print(clean_unna)
     if pg:
         query_text = '''
         SELECT hazmat_table.row_id, proper_shipping_name, class_division
@@ -46,39 +45,44 @@ def build_results(un_id, bulk, pg, db):
         ON hazmat_table.row_id = proper_shipping_names.row_id
         WHERE unna_code = '{}'
         '''.format(clean_unna)
-        
+    
     print(query_text)
     row_id_query = db.execute(query_text)
-    #TO DO : make sure that UNNA code and pg uniquely identify each row.
-    row_id, hazmat_name, class_division = row_id_query.fetchone()
-    ins = instructions.Instructions(db, soup.Soup(2))
-    requirement_query = ins.db.execute('''
-            SELECT section FROM packaging_instructions
-            WHERE row_id = {} AND bulk = {}
-        '''.format(row_id, 1 if bulk == 'true' else 0))
+    # if the query returns a row, build the results
+    if row_id_query:
+        #TO DO : make sure that UNNA code and pg uniquely identify each row.
+        row_id, hazmat_name, class_division = row_id_query.fetchone()
+        ins = instructions.Instructions(db, soup.Soup(2))
+        requirement_query = ins.db.execute('''
+                SELECT section FROM packaging_instructions
+                WHERE row_id = {} AND bulk = {}
+            '''.format(row_id, 1 if bulk == 'true' else 0))
 
-    try:
-        requirement = requirement_query.fetchone()
-        requirement = requirement[0]
-        spans_paragraphs = ins.get_spans_paragraphs(requirement)
-    except:
-        spans_paragraphs = None
-    bulk_text = 'Bulk' if bulk == "true" else 'Non-Bulk'
-    if spans_paragraphs:
-        packaging_text = ct.build_packaging_text(spans_paragraphs)
+        try:
+            requirement = requirement_query.fetchone()
+            requirement = requirement[0]
+            spans_paragraphs = ins.get_spans_paragraphs(requirement)
+        except:
+            spans_paragraphs = None
+        bulk_text = 'Bulk' if bulk == "true" else 'Non-Bulk'
+        if spans_paragraphs:
+            packaging_text = ct.build_packaging_text(spans_paragraphs)
+        else:
+            packaging_text = ["No {} packaging instructions of {} available.".format(
+                bulk_text.lower(), hazmat_name)]
+
+        return {'UNID': un_id,
+                'hazmat_name': hazmat_name,
+                'bulk': bulk_text,
+                'pg': pg,
+                'part_num': requirement,
+                'forbidden': True if class_division == 'Forbidden' else False,
+                'text': packaging_text,
+                'special_provisions': ins.get_special_provisions(row_id)}
     else:
-        packaging_text = ["No {} packaging instructions of {} available.".format(
-            bulk_text.lower(), hazmat_name)]
+        flash('UN number does not exist')
 
-    return {'UNID': un_id,
-            'hazmat_name': hazmat_name,
-            'bulk': bulk_text,
-            'pg': pg,
-            'part_num': requirement,
-            'forbidden': True if class_division == 'Forbidden' else False,
-            'text': packaging_text,
-            'special_provisions': ins.get_special_provisions(row_id)}
-
+#  this route is used to look up packaging instructions for a given UN number
 @bp.route('/',  methods=('GET', 'POST'))
 def code_lookup():
     print(flask.request.args)
@@ -91,7 +95,6 @@ def code_lookup():
     bulk = flask.request.args.get("bulk", None)
     pg = flask.request.args.get("pg", None)
     code = flask.request.args.get("code", None)
-    
     if un:
         hazmat_db = db.get_db()
         render_results = build_results(un, bulk, pg, hazmat_db)

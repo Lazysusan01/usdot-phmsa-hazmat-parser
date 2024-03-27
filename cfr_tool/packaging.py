@@ -28,7 +28,6 @@ def build_autocomplete(db):
 
     # Transform results into the desired format
     autocomplete_list = [{'label': row[0].strip().replace('\n',''), 'value': row[1]} for row in results]
-    print(autocomplete_list)
     return autocomplete_list
 
 @bp.route('/',  methods=('GET', 'POST'))
@@ -36,6 +35,11 @@ def packaging():
     autocomplete_data = build_autocomplete(db.get_db())
     if request.method == 'POST':
         un_id = request.form['un_id']
+        try:
+            int(un_id)
+            un_id=f"UN{un_id}"
+        except:
+            pass
         bulk = request.form.get('bulk')
         hazmat_db = db.get_db()
         if not request.form.get('packing-group'):
@@ -44,8 +48,6 @@ def packaging():
         else:
             pg = request.form['packing-group']
         error = None
-      
-
         if not un_id:
             error = 'UNID is required.'
         else:
@@ -54,8 +56,12 @@ def packaging():
                 True if bulk == "on" else False,
                 pg,
                 hazmat_db)
+        if render_results:
             return render_template(
-                'packaging.html', len=len(render_results['text']), results=render_results)
+                'packaging.html', len=len(render_results['text']), results=render_results, autocomplete_data=autocomplete_data)
+        else:
+            flash('UN number does not exist')
+            return render_template('packaging.html', autocomplete_data=autocomplete_data)
         flash(error)
     return render_template('packaging.html', autocomplete_data=autocomplete_data)
 
