@@ -8,3 +8,4 @@ consolidated_code.xml
 codebase2txt.py
 test.py
 db_migration_job.mjf
+/hazmat-venv
