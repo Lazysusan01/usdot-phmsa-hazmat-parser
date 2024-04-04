@@ -8,6 +8,7 @@ from . import packaging_codes as pc
 from . import soup
 from . import clean_text as ct
 from . import instructions
+from . import autocomplete
 
 bp = flask.Blueprint('packaging', __name__)
 
@@ -85,6 +86,7 @@ def build_results(un_id, bulk, pg, db):
 #  this route is used to look up packaging instructions for a given UN number
 @bp.route('/',  methods=('GET', 'POST'))
 def code_lookup():
+    autocomplete_data = autocomplete.build_autocomplete(db.get_db())
     print(flask.request.args)
     un = flask.request.args.get("un", None)
     try:
@@ -100,10 +102,10 @@ def code_lookup():
         render_results = build_results(un, bulk, pg, hazmat_db)
         if render_results:
             return flask.render_template(
-                'packaging.html', len=len(render_results['text']), results=render_results)
+                'packaging.html', len=len(render_results['text']), results=render_results, autocomplete_data=autocomplete_data)
         else:
             flash("Invalid UN number, format must be UN0000, or 0000")
-            return flask.render_template('packaging.html', results=False)
+            return flask.render_template('packaging.html',autocomplete_data=autocomplete_data, results=False)
     if code:
         cur = db.get_db().cursor()
         cur.execute('''
@@ -125,4 +127,4 @@ def code_lookup():
                            "section": section,
                            "html": html_text})
     else:
-        return flask.render_template("packaging.html", results=False)
+        return flask.render_template("packaging.html",autocomplete_data=autocomplete_data,results=False)
