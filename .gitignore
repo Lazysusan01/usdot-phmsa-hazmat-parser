@@ -9,3 +9,4 @@ codebase2txt.py
 test.py
 db_migration_job.mjf
 /hazmat-venv
+zappa_settings.json
