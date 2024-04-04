@@ -9,12 +9,10 @@ from . import autocomplete
 
 bp = Blueprint('packaging', __name__)
         
-
 def check_packaging(unna, db):
     db.execute("SELECT pg FROM hazmat_table WHERE unna_code = '{}'".format(unna))
     pgs = db.fetchall()
     if len(pgs) > 1:
-        #TO DO: render packaging.html so it shows the multiple PG options for the user to select.
         render_template('packaging.html')
 
 @bp.route('/help', methods=['GET'])

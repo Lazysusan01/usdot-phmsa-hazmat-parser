@@ -97,8 +97,10 @@
         <div class="flash text-red-500">{{ message }}</div>
         {% endfor %}
     </section>
-
     {% if results %}
+    <div>
+        <h1 id='class_division'>Hazard Labels for {{ results['hazmat_name'] }}</h1>
+        <img src="{{ url_for('static', filename='images/' + results['class_division'] + '.png') }}" alt="Expected Result" width='150' height='auto'>
     <div>
         <h1 id="hazmat">{{ results['bulk'] }} Packaging Instructions for {{ results['UNID'] }}{% if results['pg'] %} packing group {{ results['pg']}}{% endif %}: <u>{{ results['hazmat_name'] }} </u></h1>
         <h2>Quantity Limitations</h2>
@@ -180,9 +182,6 @@
             });    
         });
 
-            // $('mark').bind('click', function(e){
-            //     $.getJSON($SCRIPT_ROOT + '/code_lookup', e.target.firstChild.data, function)
-            // })
             var marks = document.getElementsByTagName('mark');
             for (i = 0; i < marks.length; i++) {
                 marks[i].addEventListener('click', function(ev) {
